@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="referrer" content="no-referrer" />
+<title>中国早期铜器数据库</title>
+<link rel="stylesheet" href="/leaflet.css" />
+<script src="/leaflet.js"></script>
+<script src="https://unpkg.com/vue@3.4.21/dist/vue.global.prod.js"></script>
+<link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+<div id="app">
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1>中国早期铜器数据库</h1>
+        <p class="subtitle">Early Chinese Copper & Bronze Artifacts</p>
+      </div>
+
+      <div class="filter-section">
+        <div class="filter-row">
+          <input v-model="filters.search" type="text" placeholder="搜索名称、遗址、文化..." @input="onFilter" />
+        </div>
+        <div class="filter-row">
+          <label>区域</label>
+          <div class="checkbox-group">
+            <label v-for="r in regionOptions" :key="r">
+              <input type="checkbox" :value="r" v-model="filters.regions" @change="onFilter" /> {{ r }}
+            </label>
+          </div>
+        </div>
+        <div class="filter-row">
+          <label>时代</label>
+          <div class="range-inputs">
+            <input v-model.number="filters.period_start_min" type="number" placeholder="起始BC" @change="onFilter" />
+            <span>—</span>
+            <input v-model.number="filters.period_start_max" type="number" placeholder="终止BC" @change="onFilter" />
+          </div>
+        </div>
+        <div class="filter-row">
+          <label>材质</label>
+          <div class="checkbox-group">
+            <label v-for="m in materialOptions" :key="m">
+              <input type="checkbox" :value="m" v-model="filters.materials" @change="onFilter" /> {{ m }}
+            </label>
+          </div>
+        </div>
+        <button class="btn btn-primary" @click="showForm = true; editingId = null; resetForm()">+ 添加铜器</button>
+      </div>
+
+      <div class="artifact-list">
+        <div class="list-header">
+          <span>共 {{ totalCount }} 件</span>
+        </div>
+        <div v-for="a in artifacts" :key="a.id" class="artifact-item"
+             :class="{ active: selectedId === a.id }"
+             @click="selectArtifact(a)">
+          <div class="item-name">{{ a.name }} <small v-if="a.catalog_number" style="color:#999">[{{ a.catalog_number }}]</small></div>
+          <div class="item-site">{{ a.region || '' }} {{ a.site_name || '' }}</div>
+          <div class="item-meta">
+            <span class="tag material-tag">{{ a.material || '材质未知' }}</span>
+            <span class="tag culture-tag" v-if="a.culture">{{ a.culture }}</span>
+            <span class="tag prod-tag" v-if="a.production_method">{{ a.production_method }}</span>
+            <span v-if="a.quantity && a.quantity !== '1'" style="font-size:11px;color:#888">x{{ a.quantity }}</span>
+          </div>
+        </div>
+        <div v-if="artifacts.length === 0" class="empty-list">暂无数据</div>
+      </div>
+    </aside>
+
+    <main class="map-container">
+      <div id="map"></div>
+      <div class="map-legend">
+        <div class="legend-title">材质图例</div>
+        <div v-for="item in legendItems" :key="item.label" class="legend-item">
+          <span class="legend-dot" :style="{ background: item.color }"></span>
+          {{ item.label }}
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Detail Modal -->
+  <div v-if="selectedArtifact" class="modal-overlay" @click.self="selectedArtifact = null">
+    <div class="modal">
+      <button class="modal-close" @click="selectedArtifact = null">&times;</button>
+      <h2>{{ selectedArtifact.name }}</h2>
+      <table class="detail-table">
+        <tr v-if="selectedArtifact.catalog_number"><td>器物号</td><td>{{ selectedArtifact.catalog_number }}</td></tr>
+        <tr v-if="selectedArtifact.quantity"><td>数量</td><td>{{ selectedArtifact.quantity }}</td></tr>
+        <tr v-if="selectedArtifact.region"><td>区域</td><td>{{ selectedArtifact.region }}</td></tr>
+        <tr v-if="selectedArtifact.site_name"><td>遗址</td><td>{{ selectedArtifact.site_name }}</td></tr>
+        <tr v-if="selectedArtifact.culture"><td>考古学文化</td><td>{{ selectedArtifact.culture }}</td></tr>
+        <tr v-if="selectedArtifact.period_label"><td>时代</td><td>{{ selectedArtifact.period_label }}</td></tr>
+        <tr v-if="selectedArtifact.material"><td>材质</td><td>{{ selectedArtifact.material }}</td></tr>
+        <tr v-if="selectedArtifact.production_method"><td>制作方式</td><td>{{ selectedArtifact.production_method }}</td></tr>
+        <tr v-if="selectedArtifact.artifact_type"><td>器型</td><td>{{ selectedArtifact.artifact_type }}</td></tr>
+        <tr v-if="selectedArtifact.location_desc"><td>出土地点</td><td>{{ selectedArtifact.location_desc }}</td></tr>
+        <tr v-if="selectedArtifact.context_desc"><td>出土情境</td><td>{{ selectedArtifact.context_desc }}</td></tr>
+        <tr v-if="selectedArtifact.source_reference"><td>资料出处</td><td style="font-size:12px">{{ selectedArtifact.source_reference }}</td></tr>
+        <tr v-if="selectedArtifact.notes"><td>备注</td><td>{{ selectedArtifact.notes }}</td></tr>
+        <tr v-if="selectedArtifact.longitude != null"><td>坐标</td><td>{{ selectedArtifact.longitude.toFixed(4) }}, {{ selectedArtifact.latitude.toFixed(4) }}</td></tr>
+      </table>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" @click="editArtifact(selectedArtifact)">编辑</button>
+        <button class="btn btn-danger" @click="deleteArtifact(selectedArtifact)">删除</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Form Modal -->
+  <div v-if="showForm" class="modal-overlay" @click.self="showForm = false">
+    <div class="modal modal-form">
+      <button class="modal-close" @click="showForm = false">&times;</button>
+      <h2>{{ editingId ? '编辑铜器' : '添加铜器' }}</h2>
+      <div class="form-grid">
+        <div class="form-group"><label>器物名称 *</label><input v-model="form.name" required /></div>
+        <div class="form-group"><label>器物号</label><input v-model="form.catalog_number" /></div>
+        <div class="form-group"><label>数量</label><input v-model="form.quantity" /></div>
+        <div class="form-group"><label>区域</label><select v-model="form.region">
+          <option value="">-- 选择 --</option>
+          <option v-for="r in regionOptions" :value="r">{{ r }}</option>
+        </select></div>
+        <div class="form-group"><label>遗址名称</label><input v-model="form.site_name" /></div>
+        <div class="form-group"><label>考古学文化</label><input v-model="form.culture" /></div>
+        <div class="form-group"><label>经度 WGS84</label><input v-model.number="form.longitude" type="number" step="0.0001" /></div>
+        <div class="form-group"><label>纬度 WGS84</label><input v-model.number="form.latitude" type="number" step="0.0001" /></div>
+        <div class="form-group"><label>时代标签</label><input v-model="form.period_label" placeholder="如: 二里头文化三期" /></div>
+        <div class="form-group"><label>起始年代(BC)</label><input v-model.number="form.period_start" type="number" /></div>
+        <div class="form-group"><label>结束年代(BC)</label><input v-model.number="form.period_end" type="number" /></div>
+        <div class="form-group"><label>材质</label><select v-model="form.material">
+          <option value="">-- 选择 --</option>
+          <option v-for="m in materialOptions" :value="m">{{ m }}</option>
+        </select></div>
+        <div class="form-group"><label>制作方式</label><select v-model="form.production_method">
+          <option value="">-- 选择 --</option>
+          <option>铸造</option><option>热锻</option><option>冷锻</option><option>锻造</option>
+          <option>铸造+热锻</option><option>铸造+冷锻</option><option>热锻+冷锻</option>
+          <option>铸造+热锻+冷加工</option><option>锤击</option><option>退火</option>
+        </select></div>
+        <div class="form-group"><label>器型</label><select v-model="form.artifact_type">
+          <option value="">-- 选择 --</option>
+          <option v-for="t in typeOptions" :value="t">{{ t }}</option>
+        </select></div>
+        <div class="form-group full-width"><label>资料出处</label><textarea v-model="form.source_reference" rows="2"></textarea></div>
+        <div class="form-group full-width"><label>出土地点描述</label><textarea v-model="form.location_desc" rows="2"></textarea></div>
+        <div class="form-group full-width"><label>出土情境描述</label><textarea v-model="form.context_desc" rows="3"></textarea></div>
+        <div class="form-group full-width"><label>备注</label><textarea v-model="form.notes" rows="3"></textarea></div>
+      </div>
+      <p class="form-hint">提示：在地图上点击可选择坐标</p>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" @click="showForm = false">取消</button>
+        <button class="btn btn-primary" @click="saveArtifact">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/src/main.js"></script>
+</body>
+</html>

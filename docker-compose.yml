@@ -1,0 +1,17 @@
+services:
+  postgis:
+    image: postgres:16
+    container_name: early_bronze_db
+    environment:
+      POSTGRES_DB: early_bronze
+      POSTGRES_USER: bronze_user
+      POSTGRES_PASSWORD: bronze_pass_2024
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-postgis.sql:/docker-entrypoint-initdb.d/init-postgis.sql
+    restart: unless-stopped
+
+volumes:
+  pgdata:
