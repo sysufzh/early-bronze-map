@@ -221,14 +221,41 @@ const app = Vue.createApp({
 
     updateMarkers() {
       markerLayer.clearLayers();
+
+      // Group artifacts by coordinate for popup listing & jitter
+      const coordMap = new Map(); // key: "lon,lat" -> artifacts[]
+      this.artifacts.forEach((a) => {
+        if (a.longitude == null || a.latitude == null) return;
+        const key = `${a.longitude.toFixed(4)},${a.latitude.toFixed(4)}`;
+        if (!coordMap.has(key)) coordMap.set(key, []);
+        coordMap.get(key).push(a);
+      });
+
+      // Track how many markers we've placed at each WGS84 coordinate for jitter
+      const coordCount = new Map();
+
       this.artifacts.forEach((a) => {
         if (a.longitude == null || a.latitude == null) return;
         const color = materialColors[a.material] || defaultColor;
         const [gcjLng, gcjLat] = wgs84ToGcj02(a.longitude, a.latitude);
-        const m = L.circleMarker([gcjLat, gcjLng], {
+
+        // Add small random jitter for markers at the same location
+        const key = `${a.longitude.toFixed(4)},${a.latitude.toFixed(4)}`;
+        const count = coordCount.get(key) || 0;
+        coordCount.set(key, count + 1);
+        const jitterLng = count > 0 ? (Math.random() - 0.5) * 0.002 : 0;
+        const jitterLat = count > 0 ? (Math.random() - 0.5) * 0.002 : 0;
+
+        const m = L.circleMarker([gcjLat + jitterLat, gcjLng + jitterLng], {
           radius: 6, fillColor: color, color: '#333', weight: 1, fillOpacity: 0.8,
         }).addTo(markerLayer);
-        m.bindPopup(`<b>${a.name}</b><br/>遗址: ${a.site_name || '-'}<br/>文化: ${a.culture || '-'}<br/>材质: ${a.material || '-'}`);
+
+        // Popup lists all artifacts at this coordinate
+        const sameSite = coordMap.get(key) || [a];
+        const listItems = sameSite.slice(0, 20).map(x => `&bull; ${x.name} <small>[${x.material||'?'}]</small>`).join('<br/>');
+        const more = sameSite.length > 20 ? `<br/><small>...还有 ${sameSite.length - 20} 件</small>` : '';
+        m.bindPopup(`<b>${a.site_name || '-'}</b>（共${sameSite.length}件）<br/>${listItems}${more}`);
+
         m.on('click', () => { this.selectedId = a.id; this.selectedArtifact = a; });
       });
     },
