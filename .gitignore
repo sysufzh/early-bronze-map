@@ -8,3 +8,6 @@ __pycache__/
 dist/
 build/
 node_modules/
+backend/static/images/artifacts/*.jpg
+backend/static/images/artifacts/*.jpeg
+backend/static/images/artifacts/*.png

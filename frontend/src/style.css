@@ -89,6 +89,40 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 }
 .form-hint { font-size: 12px; color: #888; margin-top: 12px; }
 
+/* Image gallery (detail modal) */
+.image-gallery { margin-top: 16px; padding-top: 12px; border-top: 1px solid #eee; }
+.gallery-title { font-size: 13px; font-weight: 600; color: #555; margin-bottom: 8px; }
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
+.gallery-item { cursor: pointer; border: 1px solid #eee; border-radius: 4px; overflow: hidden; }
+.gallery-item:hover { border-color: #2563eb; }
+.gallery-item img { width: 100%; height: 80px; object-fit: cover; display: block; }
+.gallery-caption { font-size: 11px; color: #666; padding: 4px 6px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gallery-empty { font-size: 12px; color: #999; padding: 12px 0; }
+
+/* Lightbox */
+.lightbox-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.85); display: flex; justify-content: center; align-items: center;
+  z-index: 3000;
+}
+.lightbox-content { max-width: 90vw; max-height: 90vh; position: relative; }
+.lightbox-content img { max-width: 90vw; max-height: 85vh; border-radius: 4px; }
+.lightbox-close { position: absolute; top: -36px; right: 0; background: none; border: none; font-size: 32px; color: #fff; cursor: pointer; }
+.lightbox-caption { color: #fff; text-align: center; margin-top: 8px; font-size: 14px; }
+
+/* Form image management */
+.form-images { margin-top: 16px; padding-top: 12px; border-top: 1px solid #ddd; }
+.form-images-title { font-size: 13px; font-weight: 600; color: #555; margin-bottom: 8px; }
+.form-images-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.form-images-item { display: flex; align-items: center; gap: 8px; padding: 6px; background: #f9fafb; border-radius: 4px; }
+.form-images-thumb { width: 48px; height: 48px; object-fit: cover; border-radius: 3px; border: 1px solid #eee; }
+.form-images-name { flex: 1; font-size: 12px; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.form-images-caption { font-size: 11px; color: #888; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.form-images-upload { display: flex; gap: 8px; align-items: center; }
+.form-images-upload input[type="file"] { flex: 1; font-size: 12px; }
+.caption-input { width: 140px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
+.btn-small { padding: 4px 10px; font-size: 12px; }
+
 /* Leaflet popup override */
 .leaflet-popup-content { font-size: 13px; }
 .leaflet-popup-content b { font-size: 14px; }

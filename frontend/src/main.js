@@ -62,8 +62,12 @@ const app = Vue.createApp({
       artifacts: [],
       selectedId: null,
       selectedArtifact: null,
+      lightboxImg: null,
       showForm: false,
       editingId: null,
+      editImages: [],
+      uploadFile: null,
+      newImageCaption: '',
       page: 0,
       pageSize: 5000,
       filters: {
@@ -147,6 +151,9 @@ const app = Vue.createApp({
         context_desc: a.context_desc || '', location_desc: a.location_desc || '',
         source_reference: a.source_reference || '', image_url: a.image_url || '', notes: a.notes || '',
       };
+      this.editImages = (a.images || []).slice();
+      this.uploadFile = null;
+      this.newImageCaption = '';
       this.showForm = true;
       this.selectedArtifact = null;
     },
@@ -160,6 +167,9 @@ const app = Vue.createApp({
         artifact_type: '', context_desc: '', location_desc: '',
         source_reference: '', image_url: '', notes: '',
       };
+      this.editImages = [];
+      this.uploadFile = null;
+      this.newImageCaption = '';
     },
 
     async saveArtifact() {
@@ -192,6 +202,51 @@ const app = Vue.createApp({
       if (!confirm(`确认删除 "${a.name}"？`)) return;
       const res = await fetch(`${API_BASE}/artifacts/${a.id}`, { method: 'DELETE' });
       if (res.ok) { this.selectedArtifact = null; this.selectedId = null; await this.fetchArtifacts(); }
+    },
+
+    /* --- Images --- */
+    imageUrl(filename) {
+      return `http://localhost:8000/static/images/artifacts/${filename}`;
+    },
+
+    viewImage(img) {
+      this.lightboxImg = img;
+    },
+
+    onFileSelected(e) {
+      this.uploadFile = e.target.files[0] || null;
+    },
+
+    async uploadSelectedFile() {
+      if (!this.uploadFile || !this.editingId) return;
+      const formData = new FormData();
+      formData.append('file', this.uploadFile);
+      if (this.newImageCaption) formData.append('caption', this.newImageCaption);
+      formData.append('sort_order', this.editImages.length);
+      try {
+        const res = await fetch(`${API_BASE}/artifacts/${this.editingId}/images/upload`, {
+          method: 'POST', body: formData,
+        });
+        if (res.ok) {
+          const img = await res.json();
+          this.editImages.push(img);
+          this.uploadFile = null;
+          this.newImageCaption = '';
+          // Reset file input
+          if (this.$refs.fileInput) this.$refs.fileInput.value = '';
+        } else {
+          const err = await res.json();
+          alert('上传失败: ' + JSON.stringify(err.detail || err));
+        }
+      } catch (e) { console.error('Upload failed:', e); alert('上传失败'); }
+    },
+
+    async removeImage(imgId) {
+      if (!confirm('确认删除此图片？')) return;
+      const res = await fetch(`${API_BASE}/artifacts/${this.editingId}/images/${imgId}`, { method: 'DELETE' });
+      if (res.ok) {
+        this.editImages = this.editImages.filter(i => i.id !== imgId);
+      }
     },
 
     /* --- Map --- */

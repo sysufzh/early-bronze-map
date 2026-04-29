@@ -1,13 +1,21 @@
+import os
+import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from geoalchemy2.shape import to_shape
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
+from ..config import settings
 from ..database import get_db
-from ..models import Artifact
-from ..schemas import ArtifactCreate, ArtifactResponse, ArtifactUpdate
+from ..models import Artifact, ArtifactImage
+from ..schemas import (
+    ArtifactCreate, ArtifactResponse, ArtifactUpdate,
+    ArtifactImageCreate, ArtifactImageResponse,
+)
+
+UPLOAD_DIR = os.path.join(settings.STATIC_DIR, "images", "artifacts")
 
 router = APIRouter(prefix="/api/artifacts", tags=["artifacts"])
 
@@ -18,6 +26,17 @@ def _to_response(a: Artifact) -> ArtifactResponse:
     if a.geom is not None:
         pt = to_shape(a.geom)
         lon, lat = pt.x, pt.y
+    images = [
+        ArtifactImageResponse(
+            id=img.id,
+            artifact_id=img.artifact_id,
+            filename=img.filename,
+            caption=img.caption,
+            sort_order=img.sort_order or 0,
+            created_at=img.created_at,
+        )
+        for img in (sorted(a.images, key=lambda i: i.sort_order or 0) if a.images else [])
+    ]
     return ArtifactResponse(
         id=a.id,
         name=a.name,
@@ -39,6 +58,7 @@ def _to_response(a: Artifact) -> ArtifactResponse:
         source_reference=a.source_reference,
         image_url=a.image_url,
         notes=a.notes,
+        images=images,
         created_at=a.created_at,
         updated_at=a.updated_at,
     )
@@ -57,7 +77,7 @@ def list_artifacts(
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
-    stmt = select(Artifact)
+    stmt = select(Artifact).options(joinedload(Artifact.images))
 
     if materials:
         mat_list = [m.strip() for m in materials.split(",")]
@@ -89,13 +109,14 @@ def list_artifacts(
         )
 
     stmt = stmt.order_by(Artifact.id).offset(offset).limit(limit)
-    results = db.execute(stmt).scalars().all()
+    results = db.execute(stmt).unique().scalars().all()
     return [_to_response(r) for r in results]
 
 
 @router.get("/{artifact_id}", response_model=ArtifactResponse)
 def get_artifact(artifact_id: int, db: Session = Depends(get_db)):
-    a = db.get(Artifact, artifact_id)
+    stmt = select(Artifact).options(joinedload(Artifact.images)).where(Artifact.id == artifact_id)
+    a = db.execute(stmt).unique().scalar_one_or_none()
     if not a:
         raise HTTPException(status_code=404, detail="Artifact not found")
     return _to_response(a)
@@ -136,7 +157,8 @@ def create_artifact(data: ArtifactCreate, db: Session = Depends(get_db)):
 
 @router.put("/{artifact_id}", response_model=ArtifactResponse)
 def update_artifact(artifact_id: int, data: ArtifactUpdate, db: Session = Depends(get_db)):
-    a = db.get(Artifact, artifact_id)
+    stmt = select(Artifact).options(joinedload(Artifact.images)).where(Artifact.id == artifact_id)
+    a = db.execute(stmt).unique().scalar_one_or_none()
     if not a:
         raise HTTPException(status_code=404, detail="Artifact not found")
 
@@ -162,3 +184,69 @@ def delete_artifact(artifact_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Artifact not found")
     db.delete(a)
     db.commit()
+
+
+# ── Image CRUD ──────────────────────────────────────────────
+
+@router.post("/{artifact_id}/images", response_model=ArtifactImageResponse, status_code=201)
+def add_image(artifact_id: int, data: ArtifactImageCreate, db: Session = Depends(get_db)):
+    a = db.get(Artifact, artifact_id)
+    if not a:
+        raise HTTPException(status_code=404, detail="Artifact not found")
+    img = ArtifactImage(
+        artifact_id=artifact_id,
+        filename=data.filename,
+        caption=data.caption,
+        sort_order=data.sort_order,
+    )
+    db.add(img)
+    db.commit()
+    db.refresh(img)
+    return img
+
+
+@router.delete("/{artifact_id}/images/{image_id}", status_code=204)
+def delete_image(artifact_id: int, image_id: int, db: Session = Depends(get_db)):
+    img = db.get(ArtifactImage, image_id)
+    if not img or img.artifact_id != artifact_id:
+        raise HTTPException(status_code=404, detail="Image not found")
+    # Remove physical file
+    filepath = os.path.join(UPLOAD_DIR, img.filename)
+    if os.path.isfile(filepath):
+        os.remove(filepath)
+    db.delete(img)
+    db.commit()
+
+
+@router.post("/{artifact_id}/images/upload", response_model=ArtifactImageResponse, status_code=201)
+def upload_image(
+    artifact_id: int,
+    file: UploadFile = File(...),
+    caption: str = Form(""),
+    sort_order: int = Form(0),
+    db: Session = Depends(get_db),
+):
+    a = db.get(Artifact, artifact_id)
+    if not a:
+        raise HTTPException(status_code=404, detail="Artifact not found")
+    # Generate unique filename while preserving original extension
+    ext = os.path.splitext(file.filename or ".jpg")[1] or ".jpg"
+    unique_name = f"{artifact_id}_{uuid.uuid4().hex[:8]}{ext}"
+    # Ensure upload directory exists
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    filepath = os.path.join(UPLOAD_DIR, unique_name)
+    # Write file
+    content = file.file.read()
+    with open(filepath, "wb") as f:
+        f.write(content)
+    # Create DB record
+    img = ArtifactImage(
+        artifact_id=artifact_id,
+        filename=unique_name,
+        caption=caption,
+        sort_order=sort_order,
+    )
+    db.add(img)
+    db.commit()
+    db.refresh(img)
+    return img

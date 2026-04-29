@@ -103,10 +103,30 @@
         <tr v-if="selectedArtifact.notes"><td>备注</td><td>{{ selectedArtifact.notes }}</td></tr>
         <tr v-if="selectedArtifact.longitude != null"><td>坐标</td><td>{{ selectedArtifact.longitude.toFixed(4) }}, {{ selectedArtifact.latitude.toFixed(4) }}</td></tr>
       </table>
+      <div class="image-gallery" v-if="selectedArtifact.image_url || (selectedArtifact.images && selectedArtifact.images.length)">
+        <div class="gallery-title">图片 ({{ (selectedArtifact.images || []).length }})</div>
+        <div class="gallery-grid">
+          <div v-for="img in selectedArtifact.images" :key="img.id" class="gallery-item" @click="viewImage(img)">
+            <img :src="imageUrl(img.filename)" :alt="img.caption || ''" />
+            <div class="gallery-caption" v-if="img.caption">{{ img.caption }}</div>
+            <div class="gallery-caption" v-else style="color:#999">{{ img.filename }}</div>
+          </div>
+        </div>
+        <div v-if="!selectedArtifact.images || !selectedArtifact.images.length" class="gallery-empty">暂无图片</div>
+      </div>
       <div class="modal-actions">
         <button class="btn btn-secondary" @click="editArtifact(selectedArtifact)">编辑</button>
         <button class="btn btn-danger" @click="deleteArtifact(selectedArtifact)">删除</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Image Lightbox -->
+  <div v-if="lightboxImg" class="lightbox-overlay" @click.self="lightboxImg = null">
+    <div class="lightbox-content">
+      <button class="lightbox-close" @click="lightboxImg = null">&times;</button>
+      <img :src="imageUrl(lightboxImg.filename)" />
+      <div class="lightbox-caption" v-if="lightboxImg.caption">{{ lightboxImg.caption }}</div>
     </div>
   </div>
 
@@ -150,6 +170,24 @@
         <div class="form-group full-width"><label>备注</label><textarea v-model="form.notes" rows="3"></textarea></div>
       </div>
       <p class="form-hint">提示：在地图上点击可选择坐标</p>
+      <!-- Image management (edit mode only) -->
+      <div v-if="editingId" class="form-images">
+        <div class="form-images-title">图片管理</div>
+        <div v-if="editImages.length" class="form-images-list">
+          <div v-for="img in editImages" :key="img.id" class="form-images-item">
+            <img :src="imageUrl(img.filename)" class="form-images-thumb" />
+            <span class="form-images-name">{{ img.filename }}</span>
+            <span class="form-images-caption">{{ img.caption || '' }}</span>
+            <button class="btn btn-danger btn-small" @click="removeImage(img.id)">删除</button>
+          </div>
+        </div>
+        <div v-else class="gallery-empty">暂无图片</div>
+        <div class="form-images-upload">
+          <input type="file" ref="fileInput" accept="image/*" @change="onFileSelected" />
+          <input v-model="newImageCaption" placeholder="图注（可选）" class="caption-input" />
+          <button class="btn btn-primary btn-small" @click="uploadSelectedFile" :disabled="!uploadFile">上传</button>
+        </div>
+      </div>
       <div class="modal-actions">
         <button class="btn btn-secondary" @click="showForm = false">取消</button>
         <button class="btn btn-primary" @click="saveArtifact">保存</button>

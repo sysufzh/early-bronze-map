@@ -47,6 +47,23 @@ class ArtifactUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+class ArtifactImageCreate(BaseModel):
+    filename: str = Field(..., max_length=300)
+    caption: Optional[str] = Field(None, max_length=200)
+    sort_order: int = 0
+
+
+class ArtifactImageResponse(BaseModel):
+    id: int
+    artifact_id: int
+    filename: str
+    caption: Optional[str] = None
+    sort_order: int = 0
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
 class ArtifactResponse(BaseModel):
     id: int
     name: str
@@ -68,6 +85,7 @@ class ArtifactResponse(BaseModel):
     source_reference: Optional[str] = None
     image_url: Optional[str] = None
     notes: Optional[str] = None
+    images: list[ArtifactImageResponse] = []
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

@@ -1,7 +1,21 @@
 from geoalchemy2 import Geometry
-from sqlalchemy import Column, Integer, String, Text, DateTime, func
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func
+from sqlalchemy.orm import relationship
 
 from .database import Base
+
+
+class ArtifactImage(Base):
+    __tablename__ = "artifact_images"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    artifact_id = Column(Integer, ForeignKey("artifacts.id", ondelete="CASCADE"), nullable=False)
+    filename = Column(String(300), nullable=False, comment="文件名，如 二里头_M33_15_01.jpg")
+    caption = Column(String(200), comment="图注，如 正面、剖面")
+    sort_order = Column(Integer, default=0, comment="排序")
+    created_at = Column(DateTime, server_default=func.now())
+
+    artifact = relationship("Artifact", back_populates="images")
 
 
 class Artifact(Base):
@@ -28,6 +42,8 @@ class Artifact(Base):
     notes = Column(Text, comment="备注")
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    images = relationship("ArtifactImage", back_populates="artifact", cascade="all, delete-orphan")
 
 
 class Reference(Base):

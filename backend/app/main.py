@@ -23,6 +23,8 @@ app.include_router(artifacts.router)
 app.include_router(map_router.router)
 app.include_router(tiles.router)
 
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 @app.get("/api/health")
 def health():
