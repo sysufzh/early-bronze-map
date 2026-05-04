@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     DB_NAME: str = "early_bronze"
     DB_USER: str = "bronze_user"
     DB_PASSWORD: str = "bronze_pass_2024"
-    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:8000", "http://127.0.0.1:5173"]
+    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:8000", "http://127.0.0.1:5173", "http://43.134.88.166:8000"]
     STATIC_DIR: str = str(BACKEND_DIR / "static")
     JWT_SECRET: str = ""
     JWT_ALGORITHM: str = "HS256"

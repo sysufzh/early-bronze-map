@@ -43,7 +43,7 @@ function gcj02ToWgs84(lng, lat) {
   return [lng * 2 - wgsLng, lat * 2 - wgsLat];
 }
 
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = '/api';
 
 const materialColors = {
   '红铜': '#e74c3c', '黄铜': '#f1c40f', '锡青铜': '#2ecc71',
@@ -217,7 +217,7 @@ const app = Vue.createApp({
 
     /* --- Images --- */
     imageUrl(filename) {
-      return `http://localhost:8000/static/images/artifacts/${filename}`;
+      return `/static/images/artifacts/${filename}`;
     },
 
     viewImage(img) {
