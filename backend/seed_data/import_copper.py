@@ -7,9 +7,10 @@ import pandas as pd
 from app.database import SessionLocal
 from app.models import Artifact
 
-# Read Excel, skip first row (all NaN), use second row as header
+# Read Excel from project root
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 df = pd.read_excel(
-    '/Users/fanzihao/apps/map/early-bronze-map/copper.xlsx',
+    os.path.join(BASE_DIR, 'copper.xlsx'),
     header=1,
 )
 df.columns = ['序号', '区域', '所属考古学文化', '所属遗址', '器物号', '名称', '数量', '制作方式', '材质', '资料出处']
