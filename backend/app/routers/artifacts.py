@@ -8,8 +8,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from ..config import settings
+from ..auth import require_admin
 from ..database import get_db
-from ..models import Artifact, ArtifactImage
+from ..models import Artifact, ArtifactImage, User
 from ..schemas import (
     ArtifactCreate, ArtifactResponse, ArtifactUpdate,
     ArtifactImageCreate, ArtifactImageResponse,
@@ -123,7 +124,7 @@ def get_artifact(artifact_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=ArtifactResponse, status_code=201)
-def create_artifact(data: ArtifactCreate, db: Session = Depends(get_db)):
+def create_artifact(data: ArtifactCreate, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
     geom = None
     if data.longitude is not None and data.latitude is not None:
         geom = func.ST_SetSRID(
@@ -156,7 +157,7 @@ def create_artifact(data: ArtifactCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{artifact_id}", response_model=ArtifactResponse)
-def update_artifact(artifact_id: int, data: ArtifactUpdate, db: Session = Depends(get_db)):
+def update_artifact(artifact_id: int, data: ArtifactUpdate, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
     stmt = select(Artifact).options(joinedload(Artifact.images)).where(Artifact.id == artifact_id)
     a = db.execute(stmt).unique().scalar_one_or_none()
     if not a:
@@ -178,7 +179,7 @@ def update_artifact(artifact_id: int, data: ArtifactUpdate, db: Session = Depend
 
 
 @router.delete("/{artifact_id}", status_code=204)
-def delete_artifact(artifact_id: int, db: Session = Depends(get_db)):
+def delete_artifact(artifact_id: int, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
     a = db.get(Artifact, artifact_id)
     if not a:
         raise HTTPException(status_code=404, detail="Artifact not found")
@@ -189,7 +190,7 @@ def delete_artifact(artifact_id: int, db: Session = Depends(get_db)):
 # ── Image CRUD ──────────────────────────────────────────────
 
 @router.post("/{artifact_id}/images", response_model=ArtifactImageResponse, status_code=201)
-def add_image(artifact_id: int, data: ArtifactImageCreate, db: Session = Depends(get_db)):
+def add_image(artifact_id: int, data: ArtifactImageCreate, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
     a = db.get(Artifact, artifact_id)
     if not a:
         raise HTTPException(status_code=404, detail="Artifact not found")
@@ -206,7 +207,7 @@ def add_image(artifact_id: int, data: ArtifactImageCreate, db: Session = Depends
 
 
 @router.delete("/{artifact_id}/images/{image_id}", status_code=204)
-def delete_image(artifact_id: int, image_id: int, db: Session = Depends(get_db)):
+def delete_image(artifact_id: int, image_id: int, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
     img = db.get(ArtifactImage, image_id)
     if not img or img.artifact_id != artifact_id:
         raise HTTPException(status_code=404, detail="Image not found")
@@ -225,6 +226,7 @@ def upload_image(
     caption: str = Form(""),
     sort_order: int = Form(0),
     db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
 ):
     a = db.get(Artifact, artifact_id)
     if not a:

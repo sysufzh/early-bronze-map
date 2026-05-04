@@ -17,6 +17,14 @@
       <div class="sidebar-header">
         <h1>中国早期铜器数据库</h1>
         <p class="subtitle">Early Chinese Copper & Bronze Artifacts</p>
+        <div class="auth-status" v-if="!isLoggedIn">
+          <button class="btn btn-small btn-primary" @click="showLoginModal = true">登录</button>
+          <button class="btn btn-small btn-secondary" @click="showRegisterModal = true; authForm = {username:'',password:''}">注册</button>
+        </div>
+        <div class="auth-status" v-else>
+          <span class="auth-user">{{ user.username }} <span v-if="isAdmin" class="admin-badge">管理员</span></span>
+          <button class="btn btn-small btn-secondary" @click="doLogout">退出</button>
+        </div>
       </div>
 
       <div class="filter-section">
@@ -47,7 +55,7 @@
             </label>
           </div>
         </div>
-        <button class="btn btn-primary" @click="showForm = true; editingId = null; resetForm()">+ 添加铜器</button>
+        <button v-if="isAdmin" class="btn btn-primary" @click="showForm = true; editingId = null; resetForm()">+ 添加铜器</button>
       </div>
 
       <div class="artifact-list">
@@ -114,7 +122,7 @@
         </div>
         <div v-if="!selectedArtifact.images || !selectedArtifact.images.length" class="gallery-empty">暂无图片</div>
       </div>
-      <div class="modal-actions">
+      <div v-if="isAdmin" class="modal-actions">
         <button class="btn btn-secondary" @click="editArtifact(selectedArtifact)">编辑</button>
         <button class="btn btn-danger" @click="deleteArtifact(selectedArtifact)">删除</button>
       </div>
@@ -192,6 +200,48 @@
         <button class="btn btn-secondary" @click="showForm = false">取消</button>
         <button class="btn btn-primary" @click="saveArtifact">保存</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Login Modal -->
+  <div v-if="showLoginModal" class="modal-overlay" @click.self="showLoginModal = false">
+    <div class="modal auth-modal">
+      <button class="modal-close" @click="showLoginModal = false">&times;</button>
+      <h2>登录</h2>
+      <div class="form-group">
+        <label>用户名</label>
+        <input v-model="authForm.username" @keyup.enter="doLogin" placeholder="输入用户名" />
+      </div>
+      <div class="form-group">
+        <label>密码</label>
+        <input v-model="authForm.password" type="password" @keyup.enter="doLogin" placeholder="输入密码" />
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" @click="showLoginModal = false">取消</button>
+        <button class="btn btn-primary" @click="doLogin">登录</button>
+      </div>
+      <p class="auth-switch">没有账号？<a href="#" @click.prevent="showLoginModal = false; showRegisterModal = true">注册</a></p>
+    </div>
+  </div>
+
+  <!-- Register Modal -->
+  <div v-if="showRegisterModal" class="modal-overlay" @click.self="showRegisterModal = false">
+    <div class="modal auth-modal">
+      <button class="modal-close" @click="showRegisterModal = false">&times;</button>
+      <h2>注册</h2>
+      <div class="form-group">
+        <label>用户名</label>
+        <input v-model="authForm.username" placeholder="至少3个字符" />
+      </div>
+      <div class="form-group">
+        <label>密码</label>
+        <input v-model="authForm.password" type="password" placeholder="至少6个字符" />
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" @click="showRegisterModal = false">取消</button>
+        <button class="btn btn-primary" @click="doRegister">注册</button>
+      </div>
+      <p class="auth-switch">已有账号？<a href="#" @click.prevent="showRegisterModal = false; showLoginModal = true">登录</a></p>
     </div>
   </div>
 </div>

@@ -101,3 +101,30 @@ class ArtifactFilter(BaseModel):
     period_start_max: Optional[int] = None
     search: Optional[str] = None
     bbox: Optional[str] = None  # "min_lon,min_lat,max_lon,max_lat"
+
+
+# ── Auth ────────────────────────────────────────────────────
+
+class UserRegister(BaseModel):
+    username: str = Field(..., min_length=3, max_length=100)
+    password: str = Field(..., min_length=6, max_length=100)
+
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    is_admin: bool
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse

@@ -1,5 +1,5 @@
 from geoalchemy2 import Geometry
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, func
 from sqlalchemy.orm import relationship
 
 from .database import Base
@@ -56,3 +56,13 @@ class Reference(Base):
     authors = Column(String(500), comment="作者")
     year = Column(Integer, comment="出版年份")
     notes = Column(Text, comment="引用备注")
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(100), unique=True, nullable=False, comment="用户名")
+    hashed_password = Column(String(200), nullable=False, comment="bcrypt哈希密码")
+    is_admin = Column(Boolean, default=False, nullable=False, comment="是否为管理员")
+    created_at = Column(DateTime, server_default=func.now())

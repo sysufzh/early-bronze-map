@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .database import engine, Base
-from .routers import artifacts, map as map_router, tiles
+from .routers import artifacts, map as map_router, tiles, auth
 
 # Create tables on startup
 Base.metadata.create_all(bind=engine)
@@ -22,6 +22,7 @@ app.add_middleware(
 app.include_router(artifacts.router)
 app.include_router(map_router.router)
 app.include_router(tiles.router)
+app.include_router(auth.router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 

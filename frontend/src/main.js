@@ -91,11 +91,22 @@ const app = Vue.createApp({
       typeOptions: ['工具','兵器','装饰品','礼器','炼渣','矿石','权杖头','镜','坩埚','铜渣','铜块','其他'],
       regionOptions: ['河西走廊','河湟地区','哈密盆地','黄河中下游地区','燕山地区','河套地区','长江流域','新疆中西部'],
       materialColors,
+      // Auth state
+      user: null,
+      token: null,
+      showLoginModal: false,
+      showRegisterModal: false,
+      authForm: {
+        username: '',
+        password: '',
+      },
     };
   },
 
   computed: {
     totalCount() { return this.artifacts.length; },
+    isLoggedIn() { return this.user !== null && this.token !== null; },
+    isAdmin() { return this.user !== null && this.user.is_admin === true; },
     legendItems() {
       const seen = new Set();
       this.artifacts.forEach(a => { if (a.material) seen.add(a.material); });
@@ -185,7 +196,7 @@ const app = Vue.createApp({
         let method = 'POST';
         if (this.editingId) { url += this.editingId; method = 'PUT'; }
         const res = await fetch(url, {
-          method, headers: { 'Content-Type': 'application/json' },
+          method, headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
           body: JSON.stringify(payload),
         });
         if (res.ok) {
@@ -200,7 +211,7 @@ const app = Vue.createApp({
 
     async deleteArtifact(a) {
       if (!confirm(`确认删除 "${a.name}"？`)) return;
-      const res = await fetch(`${API_BASE}/artifacts/${a.id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_BASE}/artifacts/${a.id}`, { method: 'DELETE', headers: this.authHeaders() });
       if (res.ok) { this.selectedArtifact = null; this.selectedId = null; await this.fetchArtifacts(); }
     },
 
@@ -225,7 +236,7 @@ const app = Vue.createApp({
       formData.append('sort_order', this.editImages.length);
       try {
         const res = await fetch(`${API_BASE}/artifacts/${this.editingId}/images/upload`, {
-          method: 'POST', body: formData,
+          method: 'POST', body: formData, headers: this.authHeaders(),
         });
         if (res.ok) {
           const img = await res.json();
@@ -243,10 +254,113 @@ const app = Vue.createApp({
 
     async removeImage(imgId) {
       if (!confirm('确认删除此图片？')) return;
-      const res = await fetch(`${API_BASE}/artifacts/${this.editingId}/images/${imgId}`, { method: 'DELETE' });
+      const res = await fetch(`${API_BASE}/artifacts/${this.editingId}/images/${imgId}`, { method: 'DELETE', headers: this.authHeaders() });
       if (res.ok) {
         this.editImages = this.editImages.filter(i => i.id !== imgId);
       }
+    },
+
+    /* --- Auth --- */
+    loadTokenFromStorage() {
+      const savedToken = localStorage.getItem('bronze_token');
+      const savedUser = localStorage.getItem('bronze_user');
+      if (savedToken && savedUser) {
+        try {
+          this.token = savedToken;
+          this.user = JSON.parse(savedUser);
+          this.checkAuth();
+        } catch (e) {
+          this.clearAuth();
+        }
+      }
+    },
+
+    async checkAuth() {
+      if (!this.token) return;
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, {
+          headers: { 'Authorization': `Bearer ${this.token}` },
+        });
+        if (res.ok) {
+          this.user = await res.json();
+          localStorage.setItem('bronze_user', JSON.stringify(this.user));
+        } else {
+          this.clearAuth();
+        }
+      } catch {
+        // Network error - keep current state
+      }
+    },
+
+    clearAuth() {
+      this.token = null;
+      this.user = null;
+      localStorage.removeItem('bronze_token');
+      localStorage.removeItem('bronze_user');
+    },
+
+    async doLogin() {
+      if (!this.authForm.username || !this.authForm.password) {
+        alert('请填写用户名和密码');
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.authForm),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          this.token = data.access_token;
+          this.user = data.user;
+          localStorage.setItem('bronze_token', this.token);
+          localStorage.setItem('bronze_user', JSON.stringify(this.user));
+          this.showLoginModal = false;
+          this.authForm = { username: '', password: '' };
+        } else {
+          const err = await res.json();
+          alert('登录失败: ' + (err.detail || '用户名或密码错误'));
+        }
+      } catch (e) {
+        console.error('Login failed:', e);
+        alert('登录失败，请检查网络');
+      }
+    },
+
+    async doRegister() {
+      if (!this.authForm.username || !this.authForm.password) {
+        alert('请填写用户名和密码');
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.authForm),
+        });
+        if (res.ok) {
+          alert('注册成功，请登录');
+          this.showRegisterModal = false;
+          this.authForm = { username: '', password: '' };
+        } else {
+          const err = await res.json();
+          alert('注册失败: ' + (err.detail || '未知错误'));
+        }
+      } catch (e) {
+        console.error('Register failed:', e);
+        alert('注册失败，请检查网络');
+      }
+    },
+
+    doLogout() {
+      this.clearAuth();
+      this.showForm = false;
+      this.selectedArtifact = null;
+    },
+
+    authHeaders() {
+      return this.token ? { 'Authorization': `Bearer ${this.token}` } : {};
     },
 
     /* --- Map --- */
@@ -317,6 +431,7 @@ const app = Vue.createApp({
   },
 
   mounted() {
+    this.loadTokenFromStorage();
     this.initMap();
     this.fetchArtifacts();
   },

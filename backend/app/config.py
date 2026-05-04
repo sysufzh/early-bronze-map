@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     DB_PASSWORD: str = "bronze_pass_2024"
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:8000", "http://127.0.0.1:5173"]
     STATIC_DIR: str = str(BACKEND_DIR / "static")
+    JWT_SECRET: str = ""
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
 
     @property
     def database_url(self) -> str:
