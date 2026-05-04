@@ -1,5 +1,5 @@
 """Proxy Tianditu tiles to avoid browser Referer restrictions."""
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
@@ -32,7 +32,8 @@ def tile_proxy(layer: str, z: int, x: int, y: int):
             f"&tk={TDT_KEY}"
         )
         try:
-            with urlopen(url, timeout=5) as resp:
+            req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urlopen(req, timeout=5) as resp:
                 return Response(content=resp.read(), media_type="image/png")
         except Exception:
             continue
