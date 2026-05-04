@@ -1,48 +1,3 @@
-/* GCJ-02 <-> WGS84 conversion (for 天地图 GCJ-02 tiles) */
-const PI = Math.PI;
-const X_PI = (PI * 3000.0) / 180.0;
-const A = 6378245.0;
-const EE = 0.00669342162296594323;
-
-function outOfChina(lng, lat) {
-  return lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271;
-}
-
-function transformLat(x, y) {
-  let ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
-  ret += ((20.0 * Math.sin(6.0 * x * PI) + 20.0 * Math.sin(2.0 * x * PI)) * 2.0) / 3.0;
-  ret += ((20.0 * Math.sin(y * PI) + 40.0 * Math.sin((y / 3.0) * PI)) * 2.0) / 3.0;
-  ret += ((160.0 * Math.sin((y / 12.0) * PI) + 320.0 * Math.sin((y * PI) / 30.0)) * 2.0) / 3.0;
-  return ret;
-}
-
-function transformLng(x, y) {
-  let ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
-  ret += ((20.0 * Math.sin(6.0 * x * PI) + 20.0 * Math.sin(2.0 * x * PI)) * 2.0) / 3.0;
-  ret += ((20.0 * Math.sin(x * PI) + 40.0 * Math.sin((x / 3.0) * PI)) * 2.0) / 3.0;
-  ret += ((150.0 * Math.sin((x / 12.0) * PI) + 300.0 * Math.sin((x / 30.0) * PI)) * 2.0) / 3.0;
-  return ret;
-}
-
-function wgs84ToGcj02(lng, lat) {
-  if (outOfChina(lng, lat)) return [lng, lat];
-  let dLat = transformLat(lng - 105.0, lat - 35.0);
-  let dLng = transformLng(lng - 105.0, lat - 35.0);
-  const radLat = (lat / 180.0) * PI;
-  let magic = Math.sin(radLat);
-  magic = 1 - EE * magic * magic;
-  const sqrtMagic = Math.sqrt(magic);
-  dLat = (dLat * 180.0) / (((A * (1 - EE)) / (magic * sqrtMagic)) * PI);
-  dLng = (dLng * 180.0) / ((A / sqrtMagic) * Math.cos(radLat) * PI);
-  return [lng + dLng, lat + dLat];
-}
-
-function gcj02ToWgs84(lng, lat) {
-  if (outOfChina(lng, lat)) return [lng, lat];
-  const [wgsLng, wgsLat] = wgs84ToGcj02(lng, lat);
-  return [lng * 2 - wgsLng, lat * 2 - wgsLat];
-}
-
 const API_BASE = '/api';
 
 const materialColors = {
@@ -145,8 +100,7 @@ const app = Vue.createApp({
       this.selectedId = a.id;
       this.selectedArtifact = a;
       if (map && a.longitude != null) {
-        const [gcjLng, gcjLat] = wgs84ToGcj02(a.longitude, a.latitude);
-        map.flyTo([gcjLat, gcjLng], 8, { duration: 0.5 });
+        map.flyTo([a.latitude, a.longitude], 8, { duration: 0.5 });
       }
     },
 
@@ -367,23 +321,18 @@ const app = Vue.createApp({
     initMap() {
       map = L.map('map', { center: [38.0, 104.0], zoom: 5, maxZoom: 18 });
 
-      // 天地图地形晕渲底图 (通过后端代理)
-      L.tileLayer(API_BASE + '/tiles/ter/{z}/{x}/{y}', {
-        maxZoom: 18, attribution: '天地图',
-      }).addTo(map);
-
-      // 天地图地形注记叠加层
-      L.tileLayer(API_BASE + '/tiles/cta/{z}/{x}/{y}', {
-        maxZoom: 18,
+      // OpenTopoMap 地形渲染底图
+      L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        maxZoom: 17,
+        attribution: '&copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://openstreetmap.org/copyright">OSM</a>)',
       }).addTo(map);
 
       markerLayer = L.layerGroup().addTo(map);
 
       map.on('click', (e) => {
         if (this.showForm) {
-          const [wgsLng, wgsLat] = gcj02ToWgs84(e.latlng.lng, e.latlng.lat);
-          this.form.longitude = Math.round(wgsLng * 10000) / 10000;
-          this.form.latitude = Math.round(wgsLat * 10000) / 10000;
+          this.form.longitude = Math.round(e.latlng.lng * 10000) / 10000;
+          this.form.latitude = Math.round(e.latlng.lat * 10000) / 10000;
         }
       });
     },
@@ -406,8 +355,6 @@ const app = Vue.createApp({
       this.artifacts.forEach((a) => {
         if (a.longitude == null || a.latitude == null) return;
         const color = materialColors[a.material] || defaultColor;
-        const [gcjLng, gcjLat] = wgs84ToGcj02(a.longitude, a.latitude);
-
         // Add small random jitter for markers at the same location
         const key = `${a.longitude.toFixed(4)},${a.latitude.toFixed(4)}`;
         const count = coordCount.get(key) || 0;
@@ -415,7 +362,7 @@ const app = Vue.createApp({
         const jitterLng = count > 0 ? (Math.random() - 0.5) * 0.002 : 0;
         const jitterLat = count > 0 ? (Math.random() - 0.5) * 0.002 : 0;
 
-        const m = L.circleMarker([gcjLat + jitterLat, gcjLng + jitterLng], {
+        const m = L.circleMarker([a.latitude + jitterLat, a.longitude + jitterLng], {
           radius: 6, fillColor: color, color: '#333', weight: 1, fillOpacity: 0.8,
         }).addTo(markerLayer);
 
