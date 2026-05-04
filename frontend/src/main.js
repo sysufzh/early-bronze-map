@@ -321,10 +321,10 @@ const app = Vue.createApp({
     initMap() {
       map = L.map('map', { center: [38.0, 104.0], zoom: 5, maxZoom: 18 });
 
-      // OpenTopoMap 地形晕渲底图
-      L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-        maxZoom: 17,
-        attribution: '&copy; <a href="https://opentopomap.org">OpenTopoMap</a> | <a href="https://openstreetmap.org/copyright">OSM</a>',
+      // MapTiler Outdoor 地形晕渲底图（路网标注极简）
+      L.tileLayer('https://api.maptiler.com/maps/outdoor-v2/{z}/{x}/{y}.png?key=fkAIsCTcnsFbs00BrHlT', {
+        maxZoom: 18,
+        attribution: '&copy; <a href="https://www.maptiler.com/copyright/">MapTiler</a> | <a href="https://openstreetmap.org/copyright">OSM</a>',
       }).addTo(map);
 
       markerLayer = L.layerGroup().addTo(map);
