@@ -1,8 +1,8 @@
-"""Proxy Tianditu tiles to avoid browser Referer restrictions."""
-from urllib.request import Request, urlopen
+"""Redirect to Tianditu tiles to avoid server-side WAF blocking."""
+from random import choice
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import Response
+from fastapi.responses import RedirectResponse
 
 router = APIRouter(prefix="/api/tiles", tags=["tiles"])
 
@@ -19,22 +19,16 @@ LAYERS = {
 
 @router.get("/{layer}/{z}/{x}/{y}")
 def tile_proxy(layer: str, z: int, x: int, y: int):
-    """Proxy 天地图 WMTS tile request."""
+    """Redirect browser to Tianditu WMTS tile directly."""
     if layer not in LAYERS:
         raise HTTPException(status_code=400, detail=f"Unknown layer: {layer}")
     lyr = LAYERS[layer]
-    for s in SUBDOMAINS:
-        url = (
-            f"https://t{s}.tianditu.gov.cn/{lyr}_w/wmts"
-            f"?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0"
-            f"&LAYER={lyr}&STYLE=default&TILEMATRIXSET=w"
-            f"&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}"
-            f"&tk={TDT_KEY}"
-        )
-        try:
-            req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with urlopen(req, timeout=5) as resp:
-                return Response(content=resp.read(), media_type="image/png")
-        except Exception:
-            continue
-    raise HTTPException(status_code=502, detail="All Tianditu subdomains failed")
+    s = choice(SUBDOMAINS)
+    url = (
+        f"https://t{s}.tianditu.gov.cn/{lyr}_w/wmts"
+        f"?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0"
+        f"&LAYER={lyr}&STYLE=default&TILEMATRIXSET=w"
+        f"&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}"
+        f"&tk={TDT_KEY}"
+    )
+    return RedirectResponse(url=url, status_code=302)
