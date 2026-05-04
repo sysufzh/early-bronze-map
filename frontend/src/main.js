@@ -321,10 +321,10 @@ const app = Vue.createApp({
     initMap() {
       map = L.map('map', { center: [38.0, 104.0], zoom: 5, maxZoom: 18 });
 
-      // CyclOSM：等高线地形底图，路网极简
-      L.tileLayer('https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png', {
-        maxZoom: 20,
-        attribution: '&copy; <a href="https://github.com/cyclosm/cyclosm-cartocss-style">CyclOSM</a> | <a href="https://openstreetmap.org/copyright">OSM</a>',
+      // OpenTopoMap 地形晕渲底图
+      L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        maxZoom: 17,
+        attribution: '&copy; <a href="https://opentopomap.org">OpenTopoMap</a> | <a href="https://openstreetmap.org/copyright">OSM</a>',
       }).addTo(map);
 
       markerLayer = L.layerGroup().addTo(map);
