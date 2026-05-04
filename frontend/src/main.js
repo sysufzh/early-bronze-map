@@ -321,10 +321,10 @@ const app = Vue.createApp({
     initMap() {
       map = L.map('map', { center: [38.0, 104.0], zoom: 5, maxZoom: 18 });
 
-      // OpenTopoMap 地形渲染底图
-      L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-        maxZoom: 17,
-        attribution: '&copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://openstreetmap.org/copyright">OSM</a>)',
+      // ESRI 地形晕渲底图（无路网、无标注）
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Hillshade/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 16,
+        attribution: '&copy; Esri',
       }).addTo(map);
 
       markerLayer = L.layerGroup().addTo(map);
