@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: early_bronze
       POSTGRES_USER: bronze_user
-      POSTGRES_PASSWORD: bronze_pass_2024
+      POSTGRES_PASSWORD: ${BRONZE_DB_PASSWORD:-change-me}
     ports:
       - "5432:5432"
     volumes:

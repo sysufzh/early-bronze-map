@@ -1,15 +1,19 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from slowapi.middleware import SlowAPIMiddleware
 
 from .config import settings
 from .database import engine, Base
+from .limiter import limiter
 from .routers import artifacts, map as map_router, auth
 
 # Create tables on startup
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="中国早期铜器数据库", version="0.1.0")
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

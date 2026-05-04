@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..auth import create_access_token, get_current_user, hash_password, verify_password
 from ..database import get_db
+from ..limiter import limiter
 from ..models import User
 from ..schemas import TokenResponse, UserLogin, UserRegister, UserResponse
 
@@ -11,7 +12,8 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 @router.post("/register", response_model=UserResponse, status_code=201)
-def register(data: UserRegister, db: Session = Depends(get_db)):
+@limiter.limit("3/minute")
+def register(data: UserRegister, request: Request, db: Session = Depends(get_db)):
     existing = db.execute(select(User).where(User.username == data.username)).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already exists")
@@ -28,7 +30,8 @@ def register(data: UserRegister, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(data: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def login(data: UserLogin, request: Request, db: Session = Depends(get_db)):
     user = db.execute(select(User).where(User.username == data.username)).scalar_one_or_none()
     if not user or not verify_password(data.password, user.hashed_password):
         raise HTTPException(
