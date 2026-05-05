@@ -568,9 +568,10 @@ const app = Vue.createApp({
           await this.fetchPendingEdits();
           await this.fetchArtifacts();
         } else {
+          const errText = await res.text();
           let errDetail;
-          try { errDetail = await res.json(); } catch { errDetail = await res.text(); }
-          alert('审核失败: ' + JSON.stringify(errDetail));
+          try { errDetail = JSON.parse(errText); } catch { errDetail = errText; }
+          alert('审核失败: ' + (typeof errDetail === 'object' ? JSON.stringify(errDetail) : errDetail));
         }
       } catch (e) {
         alert('审核请求失败: ' + e.message);
