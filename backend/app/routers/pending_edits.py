@@ -1,0 +1,217 @@
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
+from sqlalchemy.orm import Session, joinedload
+
+from sqlalchemy import func
+
+from ..auth import get_current_user, require_admin
+from ..database import get_db
+from ..models import Artifact, PendingEdit, User
+from ..schemas import PendingEditCreate, PendingEditResponse, RejectBody
+
+router = APIRouter(prefix="/api/pending-edits", tags=["pending-edits"])
+
+
+def _to_response(pe: PendingEdit) -> PendingEditResponse:
+    return PendingEditResponse(
+        id=pe.id,
+        user_id=pe.user_id,
+        submitter_name=pe.submitter.username if pe.submitter else None,
+        artifact_id=pe.artifact_id,
+        artifact_name=None,  # populated below for "update" type
+        action_type=pe.action_type,
+        payload=pe.payload,
+        status=pe.status,
+        reviewer_id=pe.reviewer_id,
+        reviewer_name=pe.reviewer.username if pe.reviewer else None,
+        review_notes=pe.review_notes,
+        created_at=pe.created_at,
+        updated_at=pe.updated_at,
+    )
+
+
+@router.post("/", response_model=PendingEditResponse, status_code=201)
+def submit_edit(
+    data: PendingEditCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Registered user submits a create or update for admin approval."""
+    # Validate: update requires existing artifact_id
+    if data.action_type == "update":
+        if not data.artifact_id:
+            raise HTTPException(status_code=400, detail="artifact_id is required for update")
+        a = db.get(Artifact, data.artifact_id)
+        if not a:
+            raise HTTPException(status_code=404, detail="Artifact not found")
+
+    pe = PendingEdit(
+        user_id=current_user.id,
+        artifact_id=data.artifact_id,
+        action_type=data.action_type,
+        payload=data.payload,
+        status="pending",
+    )
+    db.add(pe)
+    db.commit()
+    db.refresh(pe)
+    # Reload with relationships
+    pe = db.execute(
+        select(PendingEdit)
+        .options(joinedload(PendingEdit.submitter), joinedload(PendingEdit.reviewer))
+        .where(PendingEdit.id == pe.id)
+    ).unique().scalar_one()
+    return _to_response(pe)
+
+
+@router.get("/", response_model=list[PendingEditResponse])
+def list_pending_edits(
+    status_filter: Optional[str] = Query(None, alias="status"),
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    """Admin lists pending edits. Filter by status (pending/approved/rejected)."""
+    stmt = (
+        select(PendingEdit)
+        .options(joinedload(PendingEdit.submitter), joinedload(PendingEdit.reviewer))
+        .order_by(PendingEdit.created_at.desc())
+    )
+    if status_filter:
+        stmt = stmt.where(PendingEdit.status == status_filter)
+
+    results = db.execute(stmt).unique().scalars().all()
+
+    resp_list = []
+    for pe in results:
+        r = _to_response(pe)
+        # Populate artifact name for "update" type
+        if pe.artifact_id and pe.action_type == "update":
+            a = db.get(Artifact, pe.artifact_id)
+            if a:
+                r.artifact_name = a.name
+        resp_list.append(r)
+    return resp_list
+
+
+@router.get("/{edit_id}", response_model=PendingEditResponse)
+def get_pending_edit(
+    edit_id: int,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    pe = db.execute(
+        select(PendingEdit)
+        .options(joinedload(PendingEdit.submitter), joinedload(PendingEdit.reviewer))
+        .where(PendingEdit.id == edit_id)
+    ).unique().scalar_one_or_none()
+    if not pe:
+        raise HTTPException(status_code=404, detail="Pending edit not found")
+    r = _to_response(pe)
+    if pe.artifact_id and pe.action_type == "update":
+        a = db.get(Artifact, pe.artifact_id)
+        if a:
+            r.artifact_name = a.name
+    return r
+
+
+@router.post("/{edit_id}/approve", response_model=PendingEditResponse)
+def approve_edit(
+    edit_id: int,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin),
+):
+    pe = db.get(PendingEdit, edit_id)
+    if not pe:
+        raise HTTPException(status_code=404, detail="Pending edit not found")
+    if pe.status != "pending":
+        raise HTTPException(status_code=400, detail=f"Edit already {pe.status}")
+
+    payload = pe.payload
+
+    if pe.action_type == "create":
+        geom = None
+        if payload.get("longitude") is not None and payload.get("latitude") is not None:
+            geom = func.ST_SetSRID(
+                func.ST_MakePoint(payload["longitude"], payload["latitude"]), 4326
+            )
+        a = Artifact(
+            name=payload.get("name", ""),
+            catalog_number=payload.get("catalog_number"),
+            quantity=payload.get("quantity"),
+            region=payload.get("region"),
+            site_name=payload.get("site_name"),
+            geom=geom,
+            period_label=payload.get("period_label"),
+            period_start=payload.get("period_start"),
+            period_end=payload.get("period_end"),
+            culture=payload.get("culture"),
+            material=payload.get("material"),
+            production_method=payload.get("production_method"),
+            artifact_type=payload.get("artifact_type"),
+            context_desc=payload.get("context_desc"),
+            location_desc=payload.get("location_desc"),
+            source_reference=payload.get("source_reference"),
+            image_url=payload.get("image_url"),
+            notes=payload.get("notes"),
+        )
+        db.add(a)
+        pe.status = "approved"
+
+    elif pe.action_type == "update":
+        a = db.get(Artifact, pe.artifact_id)
+        if not a:
+            raise HTTPException(status_code=404, detail="Target artifact not found")
+        for key, value in payload.items():
+            if key == "longitude":
+                continue  # handle lon/lat together
+            if key == "latitude":
+                continue
+            if hasattr(a, key):
+                setattr(a, key, value)
+        # Handle geometry
+        lon = payload.get("longitude")
+        lat = payload.get("latitude")
+        if lon is not None and lat is not None:
+            a.geom = func.ST_SetSRID(func.ST_MakePoint(lon, lat), 4326)
+        pe.status = "approved"
+
+    pe.reviewer_id = admin_user.id
+    db.commit()
+    db.refresh(pe)
+
+    pe = db.execute(
+        select(PendingEdit)
+        .options(joinedload(PendingEdit.submitter), joinedload(PendingEdit.reviewer))
+        .where(PendingEdit.id == pe.id)
+    ).unique().scalar_one()
+    return _to_response(pe)
+
+
+@router.post("/{edit_id}/reject", response_model=PendingEditResponse)
+def reject_edit(
+    edit_id: int,
+    body: RejectBody,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_admin),
+):
+    pe = db.get(PendingEdit, edit_id)
+    if not pe:
+        raise HTTPException(status_code=404, detail="Pending edit not found")
+    if pe.status != "pending":
+        raise HTTPException(status_code=400, detail=f"Edit already {pe.status}")
+
+    pe.status = "rejected"
+    pe.reviewer_id = admin_user.id
+    if body.notes:
+        pe.review_notes = body.notes
+    db.commit()
+    db.refresh(pe)
+
+    pe = db.execute(
+        select(PendingEdit)
+        .options(joinedload(PendingEdit.submitter), joinedload(PendingEdit.reviewer))
+        .where(PendingEdit.id == pe.id)
+    ).unique().scalar_one()
+    return _to_response(pe)

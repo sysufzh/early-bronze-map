@@ -1,5 +1,6 @@
 from geoalchemy2 import Geometry
 from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from .database import Base
@@ -67,3 +68,21 @@ class User(Base):
     hashed_password = Column(String(200), nullable=False, comment="bcrypt哈希密码")
     is_admin = Column(Boolean, default=False, nullable=False, comment="是否为管理员")
     created_at = Column(DateTime, server_default=func.now())
+
+
+class PendingEdit(Base):
+    __tablename__ = "pending_edits"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, comment="提交者")
+    artifact_id = Column(Integer, ForeignKey("artifacts.id"), nullable=True, comment="目标器物，新建则为空")
+    action_type = Column(String(20), nullable=False, comment="create | update")
+    payload = Column(JSONB, nullable=False, comment="提交的器物数据")
+    status = Column(String(20), default="pending", comment="pending | approved | rejected")
+    reviewer_id = Column(Integer, ForeignKey("users.id"), nullable=True, comment="审核人")
+    review_notes = Column(Text, comment="审核意见")
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    submitter = relationship("User", foreign_keys=[user_id], backref="pending_edits")
+    reviewer = relationship("User", foreign_keys=[reviewer_id])

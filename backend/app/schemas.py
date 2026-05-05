@@ -131,3 +131,33 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+
+# ── Pending Edit ─────────────────────────────────────────────
+
+class PendingEditCreate(BaseModel):
+    artifact_id: Optional[int] = None  # None = new artifact
+    action_type: str = Field(..., pattern="^(create|update)$")
+    payload: dict
+
+
+class PendingEditResponse(BaseModel):
+    id: int
+    user_id: int
+    submitter_name: Optional[str] = None
+    artifact_id: Optional[int] = None
+    artifact_name: Optional[str] = None
+    action_type: str
+    payload: dict
+    status: str
+    reviewer_id: Optional[int] = None
+    reviewer_name: Optional[str] = None
+    review_notes: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class RejectBody(BaseModel):
+    notes: Optional[str] = None

@@ -55,7 +55,8 @@
             </label>
           </div>
         </div>
-        <button v-if="isAdmin" class="btn btn-primary" @click="showForm = true; editingId = null; resetForm()">+ 添加铜器</button>
+        <button v-if="isLoggedIn" class="btn btn-primary" @click="showForm = true; editingId = null; resetForm()">+ 添加铜器</button>
+        <button v-if="isAdmin" class="btn btn-secondary" @click="showReviewPanel = true; fetchPendingEdits()">审核修改</button>
       </div>
 
       <div class="artifact-list">
@@ -123,9 +124,9 @@
         </div>
         <div v-if="!selectedArtifact.images || !selectedArtifact.images.length" class="gallery-empty">暂无图片</div>
       </div>
-      <div v-if="isAdmin" class="modal-actions">
-        <button class="btn btn-secondary" @click="editArtifact(selectedArtifact)">编辑</button>
-        <button class="btn btn-danger" @click="deleteArtifact(selectedArtifact)">删除</button>
+      <div v-if="isLoggedIn" class="modal-actions">
+        <button v-if="isLoggedIn" class="btn btn-secondary" @click="editArtifact(selectedArtifact)">编辑</button>
+        <button v-if="isAdmin" class="btn btn-danger" @click="deleteArtifact(selectedArtifact)">删除</button>
       </div>
     </div>
   </div>
@@ -254,6 +255,48 @@
         <button class="btn btn-primary" @click="doRegister">注册</button>
       </div>
       <p class="auth-switch">已有账号？<a href="#" @click.prevent="showRegisterModal = false; showLoginModal = true">登录</a></p>
+    </div>
+  </div>
+
+  <!-- Review Panel Modal (admin) -->
+  <div v-if="showReviewPanel" class="modal-overlay" @click.self="showReviewPanel = false">
+    <div class="modal modal-review">
+      <button class="modal-close" @click="showReviewPanel = false">&times;</button>
+      <h2>修改审核</h2>
+      <div class="review-filters">
+        <button class="btn btn-small" :class="{ 'btn-primary': reviewFilter === 'pending', 'btn-secondary': reviewFilter !== 'pending' }" @click="reviewFilter = 'pending'; fetchPendingEdits()">待审核</button>
+        <button class="btn btn-small" :class="{ 'btn-primary': reviewFilter === 'approved', 'btn-secondary': reviewFilter !== 'approved' }" @click="reviewFilter = 'approved'; fetchPendingEdits()">已通过</button>
+        <button class="btn btn-small" :class="{ 'btn-primary': reviewFilter === 'rejected', 'btn-secondary': reviewFilter !== 'rejected' }" @click="reviewFilter = 'rejected'; fetchPendingEdits()">已驳回</button>
+      </div>
+      <div v-if="pendingEdits.length === 0" class="empty-list">暂无数据</div>
+      <div v-for="pe in pendingEdits" :key="pe.id" class="review-item">
+        <div class="review-item-header">
+          <span class="review-action" :class="'action-' + pe.action_type">{{ pe.action_type === 'create' ? '新增' : '修改' }}</span>
+          <span class="review-artifact-name">{{ pe.artifact_name || pe.payload?.name || '-' }}</span>
+          <span class="review-status" :class="'status-' + pe.status">{{ statusLabel(pe.status) }}</span>
+        </div>
+        <div class="review-item-meta">
+          提交者: {{ pe.submitter_name || '-' }} | {{ formatTime(pe.created_at) }}
+        </div>
+        <div class="review-payload" v-if="pe.action_type === 'update'">
+          <details>
+            <summary>查看修改内容</summary>
+            <pre>{{ JSON.stringify(pe.payload, null, 2) }}</pre>
+          </details>
+        </div>
+        <div class="review-payload" v-else>
+          <details>
+            <summary>查看新增内容</summary>
+            <pre>{{ JSON.stringify(pe.payload, null, 2) }}</pre>
+          </details>
+        </div>
+        <div v-if="pe.review_notes" class="review-notes">审核意见: {{ pe.review_notes }}</div>
+        <div class="review-actions" v-if="pe.status === 'pending'">
+          <input v-model="reviewNotes[pe.id]" placeholder="驳回理由（可选）" class="review-notes-input" />
+          <button class="btn btn-primary btn-small" @click="approveEdit(pe.id)">通过</button>
+          <button class="btn btn-danger btn-small" @click="rejectEdit(pe.id)">驳回</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>

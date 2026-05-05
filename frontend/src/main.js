@@ -56,6 +56,11 @@ const app = Vue.createApp({
         username: '',
         password: '',
       },
+      // Review panel
+      showReviewPanel: false,
+      pendingEdits: [],
+      reviewNotes: {},
+      reviewFilter: 'pending',
     };
   },
 
@@ -98,6 +103,10 @@ const app = Vue.createApp({
     nextPage() { this.page++; this.fetchArtifacts(); },
 
     selectArtifact(a) {
+      if (!this.isLoggedIn) {
+        this.showLoginModal = true;
+        return;
+      }
       this.selectedId = a.id;
       this.selectedArtifact = a;
       if (map && a.longitude != null) {
@@ -149,6 +158,32 @@ const app = Vue.createApp({
       if (payload.longitude === '') payload.longitude = null;
       if (payload.latitude === '') payload.latitude = null;
 
+      // Non-admin users submit for approval
+      if (!this.isAdmin) {
+        delete payload.source_pdf;  // PDF upload requires admin, don't include in pending edit
+        const actionType = this.editingId ? 'update' : 'create';
+        try {
+          const res = await fetch(`${API_BASE}/pending-edits/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+            body: JSON.stringify({
+              artifact_id: this.editingId || null,
+              action_type: actionType,
+              payload: payload,
+            }),
+          });
+          if (res.ok) {
+            this.showForm = false; this.editingId = null; this.resetForm();
+            alert('已提交审核，等待管理员通过');
+          } else {
+            const err = await res.json();
+            alert('提交失败: ' + JSON.stringify(err.detail || err));
+          }
+        } catch (e) { console.error('Submit failed:', e); alert('提交失败，检查后端'); }
+        return;
+      }
+
+      // Admin direct save
       try {
         let url = `${API_BASE}/artifacts/`;
         let method = 'POST';
@@ -412,8 +447,65 @@ const app = Vue.createApp({
         const more = sameSite.length > 20 ? `<br/><small>...还有 ${sameSite.length - 20} 件</small>` : '';
         m.bindPopup(`<b>${a.site_name || '-'}</b>（共${sameSite.length}件）<br/>${listItems}${more}`);
 
-        m.on('click', () => { this.selectedId = a.id; this.selectedArtifact = a; });
+        m.on('click', () => { this.selectArtifact(a); });
       });
+    },
+
+    /* --- Review Panel (admin) --- */
+    async fetchPendingEdits() {
+      try {
+        const params = new URLSearchParams();
+        if (this.reviewFilter) params.append('status', this.reviewFilter);
+        const res = await fetch(`${API_BASE}/pending-edits/?${params.toString()}`, {
+          headers: this.authHeaders(),
+        });
+        if (res.ok) {
+          this.pendingEdits = await res.json();
+        }
+      } catch (e) { console.error('Fetch pending edits failed:', e); }
+    },
+
+    async approveEdit(editId) {
+      try {
+        const res = await fetch(`${API_BASE}/pending-edits/${editId}/approve`, {
+          method: 'POST', headers: this.authHeaders(),
+        });
+        if (res.ok) {
+          await this.fetchPendingEdits();
+          await this.fetchArtifacts();
+        } else {
+          const err = await res.json();
+          alert('审核失败: ' + JSON.stringify(err.detail || err));
+        }
+      } catch (e) { console.error('Approve failed:', e); }
+    },
+
+    async rejectEdit(editId) {
+      const notes = this.reviewNotes[editId] || '';
+      try {
+        const res = await fetch(`${API_BASE}/pending-edits/${editId}/reject`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+          body: JSON.stringify({ notes: notes }),
+        });
+        if (res.ok) {
+          this.reviewNotes[editId] = '';
+          await this.fetchPendingEdits();
+        } else {
+          const err = await res.json();
+          alert('驳回失败: ' + JSON.stringify(err.detail || err));
+        }
+      } catch (e) { console.error('Reject failed:', e); }
+    },
+
+    statusLabel(status) {
+      const map = { pending: '待审核', approved: '已通过', rejected: '已驳回' };
+      return map[status] || status;
+    },
+
+    formatTime(ts) {
+      if (!ts) return '-';
+      return new Date(ts).toLocaleString('zh-CN');
     },
   },
 

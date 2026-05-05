@@ -183,3 +183,28 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 /* Leaflet popup override */
 .leaflet-popup-content { font-size: 13px; }
 .leaflet-popup-content b { font-size: 14px; }
+
+/* Review panel */
+.modal-review { max-width: 640px; }
+.review-filters { display: flex; gap: 8px; margin-bottom: 16px; }
+.review-item { padding: 12px; border: 1px solid #eee; border-radius: 6px; margin-bottom: 10px; }
+.review-item-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.review-action { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+.action-create { background: #d1fae5; color: #065f46; }
+.action-update { background: #dbeafe; color: #1e40af; }
+.review-artifact-name { font-weight: 600; font-size: 14px; flex: 1; }
+.review-status { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+.status-pending { background: #fef3c7; color: #92400e; }
+.status-approved { background: #d1fae5; color: #065f46; }
+.status-rejected { background: #fee2e2; color: #991b1b; }
+.review-item-meta { font-size: 12px; color: #888; margin-bottom: 6px; }
+.review-payload { margin-bottom: 8px; }
+.review-payload details { font-size: 12px; }
+.review-payload summary { cursor: pointer; color: #2563eb; }
+.review-payload pre { background: #f3f4f6; padding: 8px; border-radius: 4px; font-size: 11px; overflow-x: auto; max-height: 200px; overflow-y: auto; }
+.review-notes { font-size: 12px; color: #991b1b; margin-bottom: 6px; }
+.review-actions { display: flex; gap: 8px; align-items: center; }
+.review-notes-input { flex: 1; padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
+
+.pdf-current { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.pdf-current a { font-size: 12px; color: #2563eb; }

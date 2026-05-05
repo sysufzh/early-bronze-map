@@ -6,7 +6,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from .config import settings
 from .database import engine, Base
 from .limiter import limiter
-from .routers import artifacts, map as map_router, auth
+from .routers import artifacts, map as map_router, auth, pending_edits
 
 # Create tables on startup
 Base.metadata.create_all(bind=engine)
@@ -26,6 +26,7 @@ app.add_middleware(
 app.include_router(artifacts.router)
 app.include_router(map_router.router)
 app.include_router(auth.router)
+app.include_router(pending_edits.router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
