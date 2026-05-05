@@ -81,6 +81,7 @@ class PendingEdit(Base):
     status = Column(String(20), default="pending", comment="pending | approved | rejected")
     reviewer_id = Column(Integer, ForeignKey("users.id"), nullable=True, comment="审核人")
     review_notes = Column(Text, comment="审核意见")
+    approved_fields = Column(JSONB, nullable=True, comment="被接受的字段名列表，NULL=全部接受")
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

@@ -154,10 +154,15 @@ class PendingEditResponse(BaseModel):
     reviewer_id: Optional[int] = None
     reviewer_name: Optional[str] = None
     review_notes: Optional[str] = None
+    approved_fields: Optional[list[str]] = None  # NULL = all accepted
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
+
+
+class ApproveBody(BaseModel):
+    approved_fields: list[str]  # list of field names to apply
 
 
 class RejectBody(BaseModel):

@@ -61,6 +61,11 @@ const app = Vue.createApp({
       pendingEdits: [],
       reviewNotes: {},
       reviewFilter: 'pending',
+      fieldApprovals: {},  // { editId: { field: true/false } }
+      // My submissions
+      showMyEdits: false,
+      myEdits: [],
+      myFilter: '',
     };
   },
 
@@ -461,16 +466,71 @@ const app = Vue.createApp({
         });
         if (res.ok) {
           this.pendingEdits = await res.json();
+          // Init field approvals for all pending update edits
+          this.pendingEdits.forEach(pe => {
+            if (pe.status === 'pending' && pe.action_type === 'update') {
+              this.initFieldApprovals(pe);
+            }
+          });
         }
       } catch (e) { console.error('Fetch pending edits failed:', e); }
     },
 
+    initFieldApprovals(pe) {
+      if (!this.fieldApprovals[pe.id]) {
+        this.fieldApprovals[pe.id] = {};
+      }
+      const diffs = this.getDiffFields(pe);
+      diffs.forEach(d => {
+        // Default: all fields accepted
+        if (!(d.field in this.fieldApprovals[pe.id])) {
+          this.fieldApprovals[pe.id][d.field] = true;
+        }
+      });
+    },
+
+    isFieldApproved(editId, field) {
+      return this.fieldApprovals[editId]?.[field] !== false;
+    },
+
+    toggleFieldApproval(editId, field) {
+      if (!this.fieldApprovals[editId]) {
+        this.fieldApprovals[editId] = {};
+      }
+      this.fieldApprovals[editId][field] = !this.isFieldApproved(editId, field);
+    },
+
     async approveEdit(editId) {
+      const pe = this.pendingEdits.find(e => e.id === editId);
+      if (!pe) return;
+
+      let approvedFields;
+      if (pe.action_type === 'update') {
+        // Collect fields that are approved (toggle = true)
+        const diffs = this.getDiffFields(pe);
+        approvedFields = diffs.filter(d => this.isFieldApproved(editId, d.field)).map(d => d.field);
+        // Also include non-diff fields that exist in payload
+        for (const key of Object.keys(pe.payload)) {
+          if (!approvedFields.includes(key) && key !== 'longitude' && key !== 'latitude' && key !== 'source_pdf') {
+            // If field wasn't in diff (unchanged), auto-accept it
+            if (!diffs.some(d => d.field === key)) {
+              approvedFields.push(key);
+            }
+          }
+        }
+      } else {
+        // For "create", accept all fields
+        approvedFields = Object.keys(pe.payload).filter(k => k !== 'source_pdf');
+      }
+
       try {
         const res = await fetch(`${API_BASE}/pending-edits/${editId}/approve`, {
-          method: 'POST', headers: this.authHeaders(),
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+          body: JSON.stringify({ approved_fields: approvedFields }),
         });
         if (res.ok) {
+          delete this.fieldApprovals[editId];
           await this.fetchPendingEdits();
           await this.fetchArtifacts();
         } else {
@@ -501,6 +561,19 @@ const app = Vue.createApp({
     statusLabel(status) {
       const map = { pending: '待审核', approved: '已通过', rejected: '已驳回' };
       return map[status] || status;
+    },
+
+    /* --- My Submissions (registered user) --- */
+    async fetchMyEdits() {
+      try {
+        const params = new URLSearchParams();
+        if (this.myFilter) params.append('status', this.myFilter);
+        const url = `${API_BASE}/pending-edits/mine?${params.toString()}`;
+        const res = await fetch(url, { headers: this.authHeaders() });
+        if (res.ok) {
+          this.myEdits = await res.json();
+        }
+      } catch (e) { console.error('Fetch my edits failed:', e); }
     },
 
     formatTime(ts) {

@@ -56,6 +56,7 @@
           </div>
         </div>
         <button v-if="isLoggedIn" class="btn btn-primary" @click="showForm = true; editingId = null; resetForm()">+ 添加铜器</button>
+        <button v-if="isLoggedIn && !isAdmin" class="btn btn-secondary" @click="showMyEdits = true; fetchMyEdits()">我的提交</button>
         <button v-if="isAdmin" class="btn btn-secondary" @click="showReviewPanel = true; fetchPendingEdits()">审核修改</button>
       </div>
 
@@ -282,12 +283,21 @@
           <details open>
             <summary>修改对比（共 {{ getDiffFields(pe).length }} 项变动）</summary>
             <table class="diff-table">
-              <thead><tr><th>字段</th><th>原值</th><th>新值</th></tr></thead>
+              <thead><tr><th>字段</th><th>原值</th><th>新值</th><th style="width:60px">操作</th></tr></thead>
               <tbody>
-                <tr v-for="d in getDiffFields(pe)" :key="d.field">
+                <tr v-for="d in getDiffFields(pe)" :key="d.field"
+                    :class="{ 'diff-rejected': pe.status === 'pending' && !isFieldApproved(pe.id, d.field) }">
                   <td class="diff-field">{{ d.label }}</td>
                   <td class="diff-old">{{ d.old || '-' }}</td>
                   <td class="diff-new">{{ d.new || '-' }}</td>
+                  <td class="diff-action" v-if="pe.status === 'pending'">
+                    <button class="btn-toggle"
+                            :class="{ accepted: isFieldApproved(pe.id, d.field) }"
+                            @click="toggleFieldApproval(pe.id, d.field)">
+                      {{ isFieldApproved(pe.id, d.field) ? '✓' : '✗' }}
+                    </button>
+                  </td>
+                  <td class="diff-action" v-else>{{ pe.approved_fields && pe.approved_fields.includes(d.field) ? '✓' : '✗' }}</td>
                 </tr>
               </tbody>
             </table>
@@ -310,6 +320,33 @@
           <input v-model="reviewNotes[pe.id]" placeholder="驳回理由（可选）" class="review-notes-input" />
           <button class="btn btn-primary btn-small" @click="approveEdit(pe.id)">通过</button>
           <button class="btn btn-danger btn-small" @click="rejectEdit(pe.id)">驳回</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- My Submissions Modal (registered user) -->
+  <div v-if="showMyEdits" class="modal-overlay" @click.self="showMyEdits = false">
+    <div class="modal modal-review">
+      <button class="modal-close" @click="showMyEdits = false">&times;</button>
+      <h2>我的提交</h2>
+      <div class="review-filters">
+        <button class="btn btn-small" :class="{ 'btn-primary': myFilter === '', 'btn-secondary': myFilter !== '' }" @click="myFilter = ''; fetchMyEdits()">全部</button>
+        <button class="btn btn-small" :class="{ 'btn-primary': myFilter === 'pending', 'btn-secondary': myFilter !== 'pending' }" @click="myFilter = 'pending'; fetchMyEdits()">待审核</button>
+        <button class="btn btn-small" :class="{ 'btn-primary': myFilter === 'approved', 'btn-secondary': myFilter !== 'approved' }" @click="myFilter = 'approved'; fetchMyEdits()">已通过</button>
+        <button class="btn btn-small" :class="{ 'btn-primary': myFilter === 'rejected', 'btn-secondary': myFilter !== 'rejected' }" @click="myFilter = 'rejected'; fetchMyEdits()">已驳回</button>
+      </div>
+      <div v-if="myEdits.length === 0" class="empty-list">暂无记录</div>
+      <div v-for="pe in myEdits" :key="pe.id" class="review-item">
+        <div class="review-item-header">
+          <span class="review-action" :class="'action-' + pe.action_type">{{ pe.action_type === 'create' ? '新增' : '修改' }}</span>
+          <span class="review-artifact-name">{{ pe.artifact_name || pe.payload?.name || '-' }}</span>
+          <span class="review-status" :class="'status-' + pe.status">{{ statusLabel(pe.status) }}</span>
+        </div>
+        <div class="review-item-meta">{{ formatTime(pe.created_at) }}</div>
+        <div v-if="pe.review_notes" class="review-notes">审核意见: {{ pe.review_notes }}</div>
+        <div v-if="pe.approved_fields && pe.approved_fields.length" class="review-notes" style="color:#065f46">
+          已接受字段: {{ pe.approved_fields.join(', ') }}
         </div>
       </div>
     </div>

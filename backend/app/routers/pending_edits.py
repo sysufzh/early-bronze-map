@@ -9,7 +9,7 @@ from sqlalchemy import func
 from ..auth import get_current_user, require_admin
 from ..database import get_db
 from ..models import Artifact, PendingEdit, User
-from ..schemas import PendingEditCreate, PendingEditResponse, RejectBody
+from ..schemas import ApproveBody, PendingEditCreate, PendingEditResponse, RejectBody
 
 router = APIRouter(prefix="/api/pending-edits", tags=["pending-edits"])
 
@@ -52,6 +52,7 @@ def _to_response(pe: PendingEdit) -> PendingEditResponse:
         reviewer_id=pe.reviewer_id,
         reviewer_name=pe.reviewer.username if pe.reviewer else None,
         review_notes=pe.review_notes,
+        approved_fields=pe.approved_fields,
         created_at=pe.created_at,
         updated_at=pe.updated_at,
     )
@@ -121,6 +122,31 @@ def list_pending_edits(
     return resp_list
 
 
+@router.get("/mine", response_model=list[PendingEditResponse])
+def list_my_edits(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Registered user lists their own pending edits."""
+    stmt = (
+        select(PendingEdit)
+        .options(joinedload(PendingEdit.submitter), joinedload(PendingEdit.reviewer))
+        .where(PendingEdit.user_id == current_user.id)
+        .order_by(PendingEdit.created_at.desc())
+    )
+    results = db.execute(stmt).unique().scalars().all()
+    resp_list = []
+    for pe in results:
+        r = _to_response(pe)
+        if pe.artifact_id and pe.action_type == "update":
+            a = db.get(Artifact, pe.artifact_id)
+            if a:
+                r.artifact_name = a.name
+                r.artifact_data = _artifact_dict(a)
+        resp_list.append(r)
+    return resp_list
+
+
 @router.get("/{edit_id}", response_model=PendingEditResponse)
 def get_pending_edit(
     edit_id: int,
@@ -146,6 +172,7 @@ def get_pending_edit(
 @router.post("/{edit_id}/approve", response_model=PendingEditResponse)
 def approve_edit(
     edit_id: int,
+    body: ApproveBody,
     db: Session = Depends(get_db),
     admin_user: User = Depends(require_admin),
 ):
@@ -156,32 +183,34 @@ def approve_edit(
         raise HTTPException(status_code=400, detail=f"Edit already {pe.status}")
 
     payload = pe.payload
+    approved = body.approved_fields
 
     if pe.action_type == "create":
         geom = None
-        if payload.get("longitude") is not None and payload.get("latitude") is not None:
-            geom = func.ST_SetSRID(
-                func.ST_MakePoint(payload["longitude"], payload["latitude"]), 4326
-            )
+        if "longitude" in approved and "latitude" in approved:
+            if payload.get("longitude") is not None and payload.get("latitude") is not None:
+                geom = func.ST_SetSRID(
+                    func.ST_MakePoint(payload["longitude"], payload["latitude"]), 4326
+                )
         a = Artifact(
             name=payload.get("name", ""),
-            catalog_number=payload.get("catalog_number"),
-            quantity=payload.get("quantity"),
-            region=payload.get("region"),
-            site_name=payload.get("site_name"),
+            catalog_number=payload.get("catalog_number") if "catalog_number" in approved else None,
+            quantity=payload.get("quantity") if "quantity" in approved else None,
+            region=payload.get("region") if "region" in approved else None,
+            site_name=payload.get("site_name") if "site_name" in approved else None,
             geom=geom,
-            period_label=payload.get("period_label"),
-            period_start=payload.get("period_start"),
-            period_end=payload.get("period_end"),
-            culture=payload.get("culture"),
-            material=payload.get("material"),
-            production_method=payload.get("production_method"),
-            artifact_type=payload.get("artifact_type"),
-            context_desc=payload.get("context_desc"),
-            location_desc=payload.get("location_desc"),
-            source_reference=payload.get("source_reference"),
-            image_url=payload.get("image_url"),
-            notes=payload.get("notes"),
+            period_label=payload.get("period_label") if "period_label" in approved else None,
+            period_start=payload.get("period_start") if "period_start" in approved else None,
+            period_end=payload.get("period_end") if "period_end" in approved else None,
+            culture=payload.get("culture") if "culture" in approved else None,
+            material=payload.get("material") if "material" in approved else None,
+            production_method=payload.get("production_method") if "production_method" in approved else None,
+            artifact_type=payload.get("artifact_type") if "artifact_type" in approved else None,
+            context_desc=payload.get("context_desc") if "context_desc" in approved else None,
+            location_desc=payload.get("location_desc") if "location_desc" in approved else None,
+            source_reference=payload.get("source_reference") if "source_reference" in approved else None,
+            image_url=payload.get("image_url") if "image_url" in approved else None,
+            notes=payload.get("notes") if "notes" in approved else None,
         )
         db.add(a)
         pe.status = "approved"
@@ -191,18 +220,30 @@ def approve_edit(
         if not a:
             raise HTTPException(status_code=404, detail="Target artifact not found")
         for key, value in payload.items():
-            if key == "longitude":
-                continue  # handle lon/lat together
-            if key == "latitude":
+            if key not in approved:
                 continue
+            if key in ("longitude", "latitude"):
+                continue  # handle lon/lat together
             if hasattr(a, key):
                 setattr(a, key, value)
-        # Handle geometry
-        lon = payload.get("longitude")
-        lat = payload.get("latitude")
-        if lon is not None and lat is not None:
-            a.geom = func.ST_SetSRID(func.ST_MakePoint(lon, lat), 4326)
+        # Handle geometry only if both lon and lat are approved
+        if "longitude" in approved and "latitude" in approved:
+            lon = payload.get("longitude")
+            lat = payload.get("latitude")
+            if lon is not None and lat is not None:
+                a.geom = func.ST_SetSRID(func.ST_MakePoint(lon, lat), 4326)
         pe.status = "approved"
+
+    # Track which fields were accepted, note rejected fields
+    all_fields = set(payload.keys()) - {"longitude", "latitude"}  # lon/lat handled together
+    rejected = all_fields - set(approved)
+    pe.approved_fields = approved
+    if rejected:
+        rejected_note = "未接受字段: " + ", ".join(sorted(rejected))
+        if pe.review_notes:
+            pe.review_notes = pe.review_notes + "; " + rejected_note
+        else:
+            pe.review_notes = rejected_note
 
     pe.reviewer_id = admin_user.id
     db.commit()

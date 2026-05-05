@@ -216,3 +216,19 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 .diff-field { font-weight: 600; color: #555; white-space: nowrap; width: 20%; }
 .diff-old { color: #991b1b; background: #fee2e2; word-break: break-word; }
 .diff-new { color: #065f46; background: #d1fae5; word-break: break-word; }
+.diff-action { text-align: center; }
+.diff-rejected td { opacity: 0.4; }
+.diff-rejected .diff-action { opacity: 1; }
+
+.btn-toggle {
+  width: 28px; height: 28px; border: 2px solid #ccc; border-radius: 50%;
+  background: #fff; cursor: pointer; font-size: 14px; font-weight: bold;
+  display: inline-flex; align-items: center; justify-content: center;
+  line-height: 1; padding: 0; color: #999;
+}
+.btn-toggle.accepted {
+  border-color: #16a34a; background: #dcfce7; color: #16a34a;
+}
+.btn-toggle:not(.accepted) {
+  border-color: #dc2626; background: #fee2e2; color: #dc2626;
+}
