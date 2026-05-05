@@ -222,6 +222,8 @@ async def approve_edit(
         a = db.get(Artifact, pe.artifact_id)
         if not a:
             raise HTTPException(status_code=404, detail="Target artifact not found")
+        # Capture original values BEFORE modification for points calculation
+        orig = _artifact_dict(a)
         for key, value in payload.items():
             if key not in approved:
                 continue
@@ -252,14 +254,9 @@ async def approve_edit(
     # Award points: 1 point per field the user actually changed (not all payload fields)
     submitter = db.get(User, pe.user_id)
     if submitter:
-        if pe.action_type == "update" and pe.artifact_id:
-            artifact = db.get(Artifact, pe.artifact_id)
-            if artifact:
-                orig = _artifact_dict(artifact)
-                changed = [f for f in approved if str(payload.get(f)) != str(orig.get(f))]
-                submitter.points += len(changed)
-            else:
-                submitter.points += len(approved)
+        if pe.action_type == "update":
+            changed = [f for f in approved if str(payload.get(f)) != str(orig.get(f))]
+            submitter.points += len(changed)
         else:
             submitter.points += len(approved)
     db.commit()
