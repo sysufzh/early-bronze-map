@@ -246,10 +246,15 @@ def approve_edit(
             pe.review_notes = rejected_note
 
     pe.reviewer_id = admin_user.id
-    # Award points: 1 point per approved field
+    # Award points: 1 point per field the user actually changed (not all payload fields)
     submitter = db.get(User, pe.user_id)
     if submitter:
-        submitter.points += len(approved)
+        if pe.action_type == "update" and pe.artifact_id:
+            orig = _artifact_dict(db.get(Artifact, pe.artifact_id))
+            changed = [f for f in approved if str(payload.get(f)) != str(orig.get(f))]
+            submitter.points += len(changed)
+        else:
+            submitter.points += len(approved)
     db.commit()
     db.refresh(pe)
 
