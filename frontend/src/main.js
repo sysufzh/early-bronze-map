@@ -557,20 +557,24 @@ const app = Vue.createApp({
       }
 
       try {
+        const body = JSON.stringify({ approved_fields: approvedFields });
         const res = await fetch(`${API_BASE}/pending-edits/${editId}/approve`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
-          body: JSON.stringify({ approved_fields: approvedFields }),
+          body: body,
         });
         if (res.ok) {
           delete this.fieldApprovals[editId];
           await this.fetchPendingEdits();
           await this.fetchArtifacts();
         } else {
-          const err = await res.json();
-          alert('审核失败: ' + JSON.stringify(err.detail || err));
+          let errDetail;
+          try { errDetail = await res.json(); } catch { errDetail = await res.text(); }
+          alert('审核失败: ' + JSON.stringify(errDetail));
         }
-      } catch (e) { console.error('Approve failed:', e); }
+      } catch (e) {
+        alert('审核请求失败: ' + e.message);
+      }
     },
 
     async rejectEdit(editId) {
