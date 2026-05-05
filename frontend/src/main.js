@@ -22,6 +22,7 @@ const app = Vue.createApp({
       editingId: null,
       editImages: [],
       uploadFile: null,
+      pdfFile: null,
       newImageCaption: '',
       page: 0,
       pageSize: 5000,
@@ -114,10 +115,12 @@ const app = Vue.createApp({
         culture: a.culture || '', material: a.material || '',
         production_method: a.production_method || '', artifact_type: a.artifact_type || '',
         context_desc: a.context_desc || '', location_desc: a.location_desc || '',
-        source_reference: a.source_reference || '', image_url: a.image_url || '', notes: a.notes || '',
+        source_reference: a.source_reference || '', source_pdf: a.source_pdf || '',
+        image_url: a.image_url || '', notes: a.notes || '',
       };
       this.editImages = (a.images || []).slice();
       this.uploadFile = null;
+      this.pdfFile = null;
       this.newImageCaption = '';
       this.showForm = true;
       this.selectedArtifact = null;
@@ -130,10 +133,11 @@ const app = Vue.createApp({
         period_label: '', period_start: null, period_end: null,
         culture: '', material: '', production_method: '',
         artifact_type: '', context_desc: '', location_desc: '',
-        source_reference: '', image_url: '', notes: '',
+        source_reference: '', source_pdf: '', image_url: '', notes: '',
       };
       this.editImages = [];
       this.uploadFile = null;
+      this.pdfFile = null;
       this.newImageCaption = '';
     },
 
@@ -173,6 +177,9 @@ const app = Vue.createApp({
     imageUrl(filename) {
       return `/static/images/artifacts/${filename}`;
     },
+    pdfUrl(filename) {
+      return `/static/pdfs/${filename}`;
+    },
 
     viewImage(img) {
       this.lightboxImg = img;
@@ -211,6 +218,39 @@ const app = Vue.createApp({
       const res = await fetch(`${API_BASE}/artifacts/${this.editingId}/images/${imgId}`, { method: 'DELETE', headers: this.authHeaders() });
       if (res.ok) {
         this.editImages = this.editImages.filter(i => i.id !== imgId);
+      }
+    },
+
+    /* --- PDF upload --- */
+    onPdfSelected(e) {
+      this.pdfFile = e.target.files[0] || null;
+    },
+
+    async uploadPdf() {
+      if (!this.pdfFile || !this.editingId) return;
+      const formData = new FormData();
+      formData.append('file', this.pdfFile);
+      const res = await fetch(`${API_BASE}/artifacts/${this.editingId}/pdf`, {
+        method: 'POST', body: formData, headers: this.authHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        this.form.source_pdf = data.filename;
+        this.pdfFile = null;
+        if (this.$refs.pdfInput) this.$refs.pdfInput.value = '';
+      } else {
+        const err = await res.json();
+        alert('PDF上传失败: ' + JSON.stringify(err.detail || err));
+      }
+    },
+
+    async deletePdf() {
+      if (!confirm('确认删除此PDF？')) return;
+      const res = await fetch(`${API_BASE}/artifacts/${this.editingId}/pdf`, {
+        method: 'DELETE', headers: this.authHeaders(),
+      });
+      if (res.ok) {
+        this.form.source_pdf = '';
       }
     },
 

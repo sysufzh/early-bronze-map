@@ -38,6 +38,7 @@ class Artifact(Base):
     context_desc = Column(Text, comment="出土情境描述")
     location_desc = Column(Text, comment="具体出土地点描述")
     source_reference = Column(Text, comment="资料出处")
+    source_pdf = Column(String(300), comment="资料PDF文件名")
     image_url = Column(String(500), comment="图片路径")
     notes = Column(Text, comment="备注")
     created_at = Column(DateTime, server_default=func.now())

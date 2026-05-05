@@ -108,6 +108,7 @@
         <tr v-if="selectedArtifact.location_desc"><td>出土地点</td><td>{{ selectedArtifact.location_desc }}</td></tr>
         <tr v-if="selectedArtifact.context_desc"><td>出土情境</td><td>{{ selectedArtifact.context_desc }}</td></tr>
         <tr v-if="selectedArtifact.source_reference"><td>资料出处</td><td style="font-size:12px">{{ selectedArtifact.source_reference }}</td></tr>
+        <tr v-if="selectedArtifact.source_pdf"><td>PDF文档</td><td><a :href="pdfUrl(selectedArtifact.source_pdf)" target="_blank">查看PDF</a></td></tr>
         <tr v-if="selectedArtifact.notes"><td>备注</td><td>{{ selectedArtifact.notes }}</td></tr>
         <tr v-if="selectedArtifact.longitude != null"><td>坐标</td><td>{{ selectedArtifact.longitude.toFixed(4) }}, {{ selectedArtifact.latitude.toFixed(4) }}</td></tr>
       </table>
@@ -173,6 +174,17 @@
           <option v-for="t in typeOptions" :value="t">{{ t }}</option>
         </select></div>
         <div class="form-group full-width"><label>资料出处</label><textarea v-model="form.source_reference" rows="2"></textarea></div>
+        <div class="form-group full-width" v-if="editingId">
+          <label>资料PDF <span class="form-hint">（仅 PDF 格式）</span></label>
+          <div v-if="form.source_pdf" class="pdf-current">
+            <a :href="pdfUrl(form.source_pdf)" target="_blank">{{ form.source_pdf }}</a>
+            <button class="btn btn-danger btn-small" @click="deletePdf">删除PDF</button>
+          </div>
+          <div class="form-images-upload">
+            <input type="file" ref="pdfInput" accept=".pdf" @change="onPdfSelected" />
+            <button class="btn btn-primary btn-small" @click="uploadPdf" :disabled="!pdfFile">上传PDF</button>
+          </div>
+        </div>
         <div class="form-group full-width"><label>出土地点描述</label><textarea v-model="form.location_desc" rows="2"></textarea></div>
         <div class="form-group full-width"><label>出土情境描述</label><textarea v-model="form.context_desc" rows="3"></textarea></div>
         <div class="form-group full-width"><label>备注</label><textarea v-model="form.notes" rows="3"></textarea></div>

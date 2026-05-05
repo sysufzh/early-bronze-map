@@ -17,6 +17,7 @@ from ..schemas import (
 )
 
 UPLOAD_DIR = os.path.join(settings.STATIC_DIR, "images", "artifacts")
+PDF_DIR = os.path.join(settings.STATIC_DIR, "pdfs")
 
 router = APIRouter(prefix="/api/artifacts", tags=["artifacts"])
 
@@ -57,6 +58,7 @@ def _to_response(a: Artifact) -> ArtifactResponse:
         context_desc=a.context_desc,
         location_desc=a.location_desc,
         source_reference=a.source_reference,
+        source_pdf=a.source_pdf,
         image_url=a.image_url,
         notes=a.notes,
         images=images,
@@ -252,3 +254,50 @@ def upload_image(
     db.commit()
     db.refresh(img)
     return img
+
+
+@router.post("/{artifact_id}/pdf", status_code=201)
+def upload_pdf(
+    artifact_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    a = db.get(Artifact, artifact_id)
+    if not a:
+        raise HTTPException(status_code=404, detail="Artifact not found")
+    # Only accept PDF
+    ext = os.path.splitext(file.filename or ".pdf")[1].lower()
+    if ext not in (".pdf",):
+        raise HTTPException(status_code=400, detail="Only PDF files are accepted")
+    unique_name = f"{artifact_id}_{uuid.uuid4().hex[:8]}{ext}"
+    os.makedirs(PDF_DIR, exist_ok=True)
+    filepath = os.path.join(PDF_DIR, unique_name)
+    with open(filepath, "wb") as f:
+        f.write(file.file.read())
+    # Remove old PDF if exists
+    if a.source_pdf:
+        old_path = os.path.join(PDF_DIR, a.source_pdf)
+        if os.path.isfile(old_path):
+            os.remove(old_path)
+    a.source_pdf = unique_name
+    db.commit()
+    return {"filename": unique_name}
+
+
+@router.delete("/{artifact_id}/pdf")
+def delete_pdf(
+    artifact_id: int,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    a = db.get(Artifact, artifact_id)
+    if not a:
+        raise HTTPException(status_code=404, detail="Artifact not found")
+    if a.source_pdf:
+        filepath = os.path.join(PDF_DIR, a.source_pdf)
+        if os.path.isfile(filepath):
+            os.remove(filepath)
+        a.source_pdf = None
+        db.commit()
+    return {"ok": True}

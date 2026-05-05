@@ -21,6 +21,7 @@ class ArtifactCreate(BaseModel):
     context_desc: Optional[str] = None
     location_desc: Optional[str] = None
     source_reference: Optional[str] = None
+    source_pdf: Optional[str] = Field(None, max_length=300)
     image_url: Optional[str] = Field(None, max_length=500)
     notes: Optional[str] = None
 
@@ -43,6 +44,7 @@ class ArtifactUpdate(BaseModel):
     context_desc: Optional[str] = None
     location_desc: Optional[str] = None
     source_reference: Optional[str] = None
+    source_pdf: Optional[str] = Field(None, max_length=300)
     image_url: Optional[str] = Field(None, max_length=500)
     notes: Optional[str] = None
 
@@ -83,6 +85,7 @@ class ArtifactResponse(BaseModel):
     context_desc: Optional[str] = None
     location_desc: Optional[str] = None
     source_reference: Optional[str] = None
+    source_pdf: Optional[str] = None
     image_url: Optional[str] = None
     notes: Optional[str] = None
     images: list[ArtifactImageResponse] = []
