@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list[str] = [
         "http://localhost:5173", "http://localhost:8000",
         "http://127.0.0.1:5173", "http://43.134.88.166:8000",
+        "https://www.archaeomap.site",
     ]
     STATIC_DIR: str = str(BACKEND_DIR / "static")
     JWT_SECRET: str  # required: set in .env
