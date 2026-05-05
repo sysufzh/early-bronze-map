@@ -55,6 +55,7 @@ def login(data: UserLogin, request: Request, db: Session = Depends(get_db)):
             id=user.id,
             username=user.username,
             is_admin=user.is_admin,
+            points=user.points,
             created_at=user.created_at,
         ),
     )
