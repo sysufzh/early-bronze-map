@@ -246,6 +246,8 @@ def approve_edit(
             pe.review_notes = rejected_note
 
     pe.reviewer_id = admin_user.id
+    # Award points: 1 point per approved field
+    pe.submitter.points += len(approved)
     db.commit()
     db.refresh(pe)
 

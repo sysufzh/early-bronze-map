@@ -22,7 +22,7 @@
           <button class="btn btn-small btn-secondary" @click="showRegisterModal = true; authForm = {username:'',password:'',captcha_answer:null}; refreshCaptcha()">注册</button>
         </div>
         <div class="auth-status" v-else>
-          <span class="auth-user">{{ user.username }} <span v-if="isAdmin" class="admin-badge">管理员</span></span>
+          <span class="auth-user">{{ user.username }} <span v-if="isAdmin" class="admin-badge">管理员</span><span v-if="!isAdmin" class="points-badge">积分 {{ user.points || 0 }}</span></span>
           <button class="btn btn-small btn-secondary" @click="doLogout">退出</button>
         </div>
       </div>

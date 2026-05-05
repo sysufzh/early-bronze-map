@@ -126,6 +126,7 @@ class UserResponse(BaseModel):
     id: int
     username: str
     is_admin: bool
+    points: int = 0
     created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
