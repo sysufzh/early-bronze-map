@@ -147,6 +147,7 @@ class PendingEditResponse(BaseModel):
     submitter_name: Optional[str] = None
     artifact_id: Optional[int] = None
     artifact_name: Optional[str] = None
+    artifact_data: Optional[dict] = None  # current artifact state (for "update" diff)
     action_type: str
     payload: dict
     status: str

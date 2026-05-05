@@ -278,7 +278,22 @@
         <div class="review-item-meta">
           提交者: {{ pe.submitter_name || '-' }} | {{ formatTime(pe.created_at) }}
         </div>
-        <div class="review-payload" v-if="pe.action_type === 'update'">
+        <div class="review-payload" v-if="pe.action_type === 'update' && pe.artifact_data">
+          <details open>
+            <summary>修改对比（共 {{ getDiffFields(pe).length }} 项变动）</summary>
+            <table class="diff-table">
+              <thead><tr><th>字段</th><th>原值</th><th>新值</th></tr></thead>
+              <tbody>
+                <tr v-for="d in getDiffFields(pe)" :key="d.field">
+                  <td class="diff-field">{{ d.label }}</td>
+                  <td class="diff-old">{{ d.old || '-' }}</td>
+                  <td class="diff-new">{{ d.new || '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </details>
+        </div>
+        <div class="review-payload" v-else-if="pe.action_type === 'update'">
           <details>
             <summary>查看修改内容</summary>
             <pre>{{ JSON.stringify(pe.payload, null, 2) }}</pre>

@@ -507,6 +507,30 @@ const app = Vue.createApp({
       if (!ts) return '-';
       return new Date(ts).toLocaleString('zh-CN');
     },
+
+    getDiffFields(pe) {
+      const oldData = pe.artifact_data || {};
+      const newData = pe.payload || {};
+      const fieldLabels = {
+        name: '器物名称', catalog_number: '器物号', quantity: '数量',
+        region: '区域', site_name: '遗址名称',
+        period_label: '时代标签', period_start: '起始年代', period_end: '结束年代',
+        culture: '考古学文化', material: '材质',
+        production_method: '制作方式', artifact_type: '器型',
+        context_desc: '出土情境', location_desc: '出土地点',
+        source_reference: '资料出处', notes: '备注',
+        longitude: '经度', latitude: '纬度',
+      };
+      const diffs = [];
+      for (const [field, label] of Object.entries(fieldLabels)) {
+        const oldVal = oldData[field] != null ? String(oldData[field]) : '';
+        const newVal = newData[field] != null ? String(newData[field]) : '';
+        if (oldVal !== newVal) {
+          diffs.push({ field, label, old: oldVal, new: newVal });
+        }
+      }
+      return diffs;
+    },
   },
 
   mounted() {

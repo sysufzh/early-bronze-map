@@ -14,6 +14,30 @@ from ..schemas import PendingEditCreate, PendingEditResponse, RejectBody
 router = APIRouter(prefix="/api/pending-edits", tags=["pending-edits"])
 
 
+DIFF_FIELDS = [
+    "name", "catalog_number", "quantity", "region", "site_name",
+    "period_label", "period_start", "period_end", "culture", "material",
+    "production_method", "artifact_type", "context_desc", "location_desc",
+    "source_reference", "notes",
+]
+
+
+def _artifact_dict(a: Artifact) -> dict:
+    """Extract key fields from artifact for diff display."""
+    from geoalchemy2.shape import to_shape
+    d = {}
+    for f in DIFF_FIELDS:
+        d[f] = getattr(a, f, None)
+    if a.geom is not None:
+        pt = to_shape(a.geom)
+        d["longitude"] = pt.x
+        d["latitude"] = pt.y
+    else:
+        d["longitude"] = None
+        d["latitude"] = None
+    return d
+
+
 def _to_response(pe: PendingEdit) -> PendingEditResponse:
     return PendingEditResponse(
         id=pe.id,
@@ -21,6 +45,7 @@ def _to_response(pe: PendingEdit) -> PendingEditResponse:
         submitter_name=pe.submitter.username if pe.submitter else None,
         artifact_id=pe.artifact_id,
         artifact_name=None,  # populated below for "update" type
+        artifact_data=None,
         action_type=pe.action_type,
         payload=pe.payload,
         status=pe.status,
@@ -91,6 +116,7 @@ def list_pending_edits(
             a = db.get(Artifact, pe.artifact_id)
             if a:
                 r.artifact_name = a.name
+                r.artifact_data = _artifact_dict(a)
         resp_list.append(r)
     return resp_list
 
@@ -113,6 +139,7 @@ def get_pending_edit(
         a = db.get(Artifact, pe.artifact_id)
         if a:
             r.artifact_name = a.name
+            r.artifact_data = _artifact_dict(a)
     return r
 
 

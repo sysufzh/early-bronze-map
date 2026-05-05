@@ -208,3 +208,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 
 .pdf-current { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .pdf-current a { font-size: 12px; color: #2563eb; }
+
+/* Diff table */
+.diff-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+.diff-table th { background: #f3f4f6; padding: 6px 8px; text-align: left; font-weight: 600; color: #555; border-bottom: 1px solid #ddd; }
+.diff-table td { padding: 5px 8px; border-bottom: 1px solid #f3f4f6; }
+.diff-field { font-weight: 600; color: #555; white-space: nowrap; width: 20%; }
+.diff-old { color: #991b1b; background: #fee2e2; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.diff-new { color: #065f46; background: #d1fae5; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
