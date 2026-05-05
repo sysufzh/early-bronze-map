@@ -1,6 +1,6 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
@@ -9,7 +9,7 @@ from sqlalchemy import func
 from ..auth import get_current_user, require_admin
 from ..database import get_db
 from ..models import Artifact, PendingEdit, User
-from ..schemas import ApproveBody, PendingEditCreate, PendingEditResponse, RejectBody
+from ..schemas import PendingEditCreate, PendingEditResponse, RejectBody
 
 router = APIRouter(prefix="/api/pending-edits", tags=["pending-edits"])
 
@@ -170,9 +170,9 @@ def get_pending_edit(
 
 
 @router.post("/{edit_id}/approve", response_model=PendingEditResponse)
-def approve_edit(
+async def approve_edit(
     edit_id: int,
-    body: ApproveBody,
+    request: Request,
     db: Session = Depends(get_db),
     admin_user: User = Depends(require_admin),
 ):
@@ -182,8 +182,9 @@ def approve_edit(
     if pe.status != "pending":
         raise HTTPException(status_code=400, detail=f"Edit already {pe.status}")
 
+    req_body = await request.json()
+    approved = req_body.get("approved_fields", [])
     payload = pe.payload
-    approved = body.approved_fields
 
     if pe.action_type == "create":
         geom = None
