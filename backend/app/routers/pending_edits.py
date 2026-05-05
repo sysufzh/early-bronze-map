@@ -24,6 +24,8 @@ DIFF_FIELDS = [
 
 def _artifact_dict(a: Artifact) -> dict:
     """Extract key fields from artifact for diff display."""
+    if a is None:
+        return {}
     from geoalchemy2.shape import to_shape
     d = {}
     for f in DIFF_FIELDS:
@@ -251,9 +253,13 @@ async def approve_edit(
     submitter = db.get(User, pe.user_id)
     if submitter:
         if pe.action_type == "update" and pe.artifact_id:
-            orig = _artifact_dict(db.get(Artifact, pe.artifact_id))
-            changed = [f for f in approved if str(payload.get(f)) != str(orig.get(f))]
-            submitter.points += len(changed)
+            artifact = db.get(Artifact, pe.artifact_id)
+            if artifact:
+                orig = _artifact_dict(artifact)
+                changed = [f for f in approved if str(payload.get(f)) != str(orig.get(f))]
+                submitter.points += len(changed)
+            else:
+                submitter.points += len(approved)
         else:
             submitter.points += len(approved)
     db.commit()
