@@ -1,3 +1,4 @@
+import random
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -63,3 +64,39 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
             detail="Admin privileges required",
         )
     return current_user
+
+
+CAPTCHA_EXPIRE = 5  # minutes
+
+
+def create_captcha() -> dict:
+    """Generate a math CAPTCHA question and a short-lived JWT token with the answer."""
+    a = random.randint(1, 9)
+    b = random.randint(1, 9)
+    if random.choice([True, False]):
+        op = "+"
+        answer = a + b
+    else:
+        # Ensure result > 0
+        if a < b:
+            a, b = b, a
+        op = "-"
+        answer = a - b
+    question = f"{a} {op} {b} = ?"
+    token = create_access_token(
+        data={"answer": answer},
+        expires_delta=timedelta(minutes=CAPTCHA_EXPIRE),
+    )
+    return {"token": token, "question": question}
+
+
+def verify_captcha(captcha_token: Optional[str], captcha_answer: Optional[int]) -> bool:
+    """Verify the captcha answer against the token. Returns True if valid or not provided."""
+    if not captcha_token:
+        return True  # backward compat
+    try:
+        payload = jwt.decode(captcha_token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+        expected = payload.get("answer")
+        return expected is not None and expected == captcha_answer
+    except JWTError:
+        return False

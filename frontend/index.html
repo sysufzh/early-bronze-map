@@ -18,8 +18,8 @@
         <h1>中国早期铜器数据库</h1>
         <p class="subtitle">Early Chinese Copper & Bronze Artifacts</p>
         <div class="auth-status" v-if="!isLoggedIn">
-          <button class="btn btn-small btn-primary" @click="showLoginModal = true">登录</button>
-          <button class="btn btn-small btn-secondary" @click="showRegisterModal = true; authForm = {username:'',password:''}">注册</button>
+          <button class="btn btn-small btn-primary" @click="showLoginModal = true; refreshCaptcha()">登录</button>
+          <button class="btn btn-small btn-secondary" @click="showRegisterModal = true; authForm = {username:'',password:'',captcha_answer:null}; refreshCaptcha()">注册</button>
         </div>
         <div class="auth-status" v-else>
           <span class="auth-user">{{ user.username }} <span v-if="isAdmin" class="admin-badge">管理员</span></span>
@@ -230,11 +230,19 @@
         <label>密码</label>
         <input v-model="authForm.password" type="password" @keyup.enter="doLogin" placeholder="输入密码" />
       </div>
+      <div class="form-group">
+        <label>验证码</label>
+        <div class="captcha-row">
+          <span class="captcha-question">{{ captchaQuestion }}</span>
+          <a href="#" @click.prevent="refreshCaptcha" class="captcha-refresh">换一题</a>
+        </div>
+        <input v-model.number="authForm.captcha_answer" type="number" placeholder="输入计算结果" @keyup.enter="doLogin" />
+      </div>
       <div class="modal-actions">
         <button class="btn btn-secondary" @click="showLoginModal = false">取消</button>
         <button class="btn btn-primary" @click="doLogin">登录</button>
       </div>
-      <p class="auth-switch">没有账号？<a href="#" @click.prevent="showLoginModal = false; showRegisterModal = true">注册</a></p>
+      <p class="auth-switch">没有账号？<a href="#" @click.prevent="showLoginModal = false; showRegisterModal = true; authForm = {username:'',password:'',captcha_answer:null}; refreshCaptcha()">注册</a></p>
     </div>
   </div>
 
@@ -251,11 +259,19 @@
         <label>密码</label>
         <input v-model="authForm.password" type="password" placeholder="至少6个字符" />
       </div>
+      <div class="form-group">
+        <label>验证码</label>
+        <div class="captcha-row">
+          <span class="captcha-question">{{ captchaQuestion }}</span>
+          <a href="#" @click.prevent="refreshCaptcha" class="captcha-refresh">换一题</a>
+        </div>
+        <input v-model.number="authForm.captcha_answer" type="number" placeholder="输入计算结果" />
+      </div>
       <div class="modal-actions">
         <button class="btn btn-secondary" @click="showRegisterModal = false">取消</button>
         <button class="btn btn-primary" @click="doRegister">注册</button>
       </div>
-      <p class="auth-switch">已有账号？<a href="#" @click.prevent="showRegisterModal = false; showLoginModal = true">登录</a></p>
+      <p class="auth-switch">已有账号？<a href="#" @click.prevent="showRegisterModal = false; showLoginModal = true; refreshCaptcha()">登录</a></p>
     </div>
   </div>
 

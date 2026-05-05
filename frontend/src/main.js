@@ -55,7 +55,10 @@ const app = Vue.createApp({
       authForm: {
         username: '',
         password: '',
+        captcha_answer: null,
       },
+      captchaToken: '',
+      captchaQuestion: '',
       // Review panel
       showReviewPanel: false,
       pendingEdits: [],
@@ -109,6 +112,7 @@ const app = Vue.createApp({
 
     selectArtifact(a) {
       if (!this.isLoggedIn) {
+        this.refreshCaptcha();
         this.showLoginModal = true;
         return;
       }
@@ -342,7 +346,12 @@ const app = Vue.createApp({
         const res = await fetch(`${API_BASE}/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(this.authForm),
+          body: JSON.stringify({
+            username: this.authForm.username,
+            password: this.authForm.password,
+            captcha_token: this.captchaToken,
+            captcha_answer: this.authForm.captcha_answer,
+          }),
         });
         if (res.ok) {
           const data = await res.json();
@@ -351,9 +360,13 @@ const app = Vue.createApp({
           localStorage.setItem('bronze_token', this.token);
           localStorage.setItem('bronze_user', JSON.stringify(this.user));
           this.showLoginModal = false;
-          this.authForm = { username: '', password: '' };
+          this.authForm = { username: '', password: '', captcha_answer: null };
+          this.captchaToken = '';
+          this.captchaQuestion = '';
         } else {
           const err = await res.json();
+          this.refreshCaptcha();
+          this.authForm.captcha_answer = null;
           alert('登录失败: ' + (err.detail || '用户名或密码错误'));
         }
       } catch (e) {
@@ -371,14 +384,23 @@ const app = Vue.createApp({
         const res = await fetch(`${API_BASE}/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(this.authForm),
+          body: JSON.stringify({
+            username: this.authForm.username,
+            password: this.authForm.password,
+            captcha_token: this.captchaToken,
+            captcha_answer: this.authForm.captcha_answer,
+          }),
         });
         if (res.ok) {
           alert('注册成功，请登录');
           this.showRegisterModal = false;
-          this.authForm = { username: '', password: '' };
+          this.authForm = { username: '', password: '', captcha_answer: null };
+          this.captchaToken = '';
+          this.captchaQuestion = '';
         } else {
           const err = await res.json();
+          this.refreshCaptcha();
+          this.authForm.captcha_answer = null;
           alert('注册失败: ' + (err.detail || '未知错误'));
         }
       } catch (e) {
@@ -395,6 +417,17 @@ const app = Vue.createApp({
 
     authHeaders() {
       return this.token ? { 'Authorization': `Bearer ${this.token}` } : {};
+    },
+
+    async refreshCaptcha() {
+      try {
+        const res = await fetch(`${API_BASE}/auth/captcha`);
+        const data = await res.json();
+        this.captchaToken = data.token;
+        this.captchaQuestion = data.question;
+      } catch (e) {
+        console.error('Captcha fetch failed:', e);
+      }
     },
 
     /* --- Map --- */
