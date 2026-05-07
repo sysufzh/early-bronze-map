@@ -118,9 +118,6 @@ const app = Vue.createApp({
       }
       this.selectedId = a.id;
       this.selectedArtifact = a;
-      if (map && a.longitude != null) {
-        map.flyTo([a.latitude, a.longitude], 8, { duration: 0.5 });
-      }
     },
 
     editArtifact(a) {
