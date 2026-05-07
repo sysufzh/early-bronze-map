@@ -255,7 +255,9 @@ async def approve_edit(
     submitter = db.get(User, pe.user_id)
     if submitter:
         if pe.action_type == "update":
-            changed = [f for f in approved if str(payload.get(f)) != str(orig.get(f))]
+            def _val(v):
+                return None if v is None or v == '' else str(v)
+            changed = [f for f in approved if _val(payload.get(f)) != _val(orig.get(f))]
             submitter.points += len(changed)
         else:
             submitter.points += len(approved)
