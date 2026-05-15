@@ -172,3 +172,73 @@ class ApproveBody(BaseModel):
 
 class RejectBody(BaseModel):
     notes: Optional[str] = None
+
+
+# ── Prehistoric Site ──────────────────────────────────────────
+
+class PrehistoricSiteCreate(BaseModel):
+    name: str = Field(..., max_length=300)
+    catalog_number: Optional[str] = Field(None, max_length=200)
+    region: Optional[str] = Field(None, max_length=100)
+    site_name: Optional[str] = Field(None, max_length=300)
+    longitude: Optional[float] = Field(None, ge=-180, le=180)
+    latitude: Optional[float] = Field(None, ge=-90, le=90)
+    period_label: Optional[str] = Field(None, max_length=100)
+    period_start: Optional[int] = None
+    period_end: Optional[int] = None
+    culture: Optional[str] = Field(None, max_length=200)
+    site_type: Optional[str] = Field(None, max_length=100)
+    area_desc: Optional[str] = None
+    description: Optional[str] = None
+    excavation_history: Optional[str] = None
+    key_findings: Optional[str] = None
+    preservation_status: Optional[str] = Field(None, max_length=100)
+    source_reference: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class PrehistoricSiteUpdate(BaseModel):
+    name: Optional[str] = Field(None, max_length=300)
+    catalog_number: Optional[str] = Field(None, max_length=200)
+    region: Optional[str] = Field(None, max_length=100)
+    site_name: Optional[str] = Field(None, max_length=300)
+    longitude: Optional[float] = Field(None, ge=-180, le=180)
+    latitude: Optional[float] = Field(None, ge=-90, le=90)
+    period_label: Optional[str] = Field(None, max_length=100)
+    period_start: Optional[int] = None
+    period_end: Optional[int] = None
+    culture: Optional[str] = Field(None, max_length=200)
+    site_type: Optional[str] = Field(None, max_length=100)
+    area_desc: Optional[str] = None
+    description: Optional[str] = None
+    excavation_history: Optional[str] = None
+    key_findings: Optional[str] = None
+    preservation_status: Optional[str] = Field(None, max_length=100)
+    source_reference: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class PrehistoricSiteResponse(BaseModel):
+    id: int
+    name: str
+    catalog_number: Optional[str] = None
+    region: Optional[str] = None
+    site_name: Optional[str] = None
+    longitude: Optional[float] = None
+    latitude: Optional[float] = None
+    period_label: Optional[str] = None
+    period_start: Optional[int] = None
+    period_end: Optional[int] = None
+    culture: Optional[str] = None
+    site_type: Optional[str] = None
+    area_desc: Optional[str] = None
+    description: Optional[str] = None
+    excavation_history: Optional[str] = None
+    key_findings: Optional[str] = None
+    preservation_status: Optional[str] = None
+    source_reference: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}

@@ -6,7 +6,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from .config import settings
 from .database import engine, Base
 from .limiter import limiter
-from .routers import artifacts, map as map_router, auth, pending_edits
+from .routers import artifacts, map as map_router, auth, pending_edits, prehistoric_sites
 
 # Create tables on startup
 Base.metadata.create_all(bind=engine)
@@ -27,6 +27,7 @@ app.include_router(artifacts.router)
 app.include_router(map_router.router)
 app.include_router(auth.router)
 app.include_router(pending_edits.router)
+app.include_router(prehistoric_sites.router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -47,4 +48,7 @@ async def add_security_headers(request, call_next):
     return response
 
 
+# Sub-app mounts first (most specific), then root catch-all
+app.mount("/bronze", StaticFiles(directory="../frontend/bronze", html=True), name="bronze")
+app.mount("/prehistoric", StaticFiles(directory="../frontend/prehistoric", html=True), name="prehistoric")
 app.mount("/", StaticFiles(directory="../frontend", html=True), name="frontend")

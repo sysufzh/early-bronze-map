@@ -3,12 +3,34 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta name="referrer" content="no-referrer" />
-<title>中国早期铜器数据库</title>
-<link rel="stylesheet" href="/leaflet.css" />
-<script src="/leaflet.js"></script>
-<script src="https://unpkg.com/vue@3.4.21/dist/vue.global.prod.js"></script>
-<link rel="stylesheet" href="/src/style.css" />
+<title>中国考古地理信息系统</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", sans-serif;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+  min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  color: #e2e8f0;
+}
+.hero { text-align: center; margin-bottom: 48px; }
+.hero h1 { font-size: 36px; font-weight: 700; letter-spacing: 4px; margin-bottom: 8px; }
+.hero p { font-size: 16px; color: #94a3b8; letter-spacing: 2px; }
+.cards { display: flex; gap: 32px; flex-wrap: wrap; justify-content: center; padding: 0 24px; }
+.card {
+  display: block; width: 360px; background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 16px;
+  padding: 40px 32px; text-decoration: none; color: #e2e8f0;
+  transition: all 0.3s ease; backdrop-filter: blur(10px);
+}
+.card:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.3); transform: translateY(-4px); }
+.card-icon { font-size: 48px; margin-bottom: 20px; }
+.card h2 { font-size: 22px; margin-bottom: 12px; font-weight: 600; }
+.card p { font-size: 14px; color: #94a3b8; line-height: 1.7; }
+.card-tag { display: inline-block; margin-top: 16px; padding: 4px 12px; border-radius: 12px; font-size: 12px; }
+.tag-bronze { background: rgba(245,158,11,0.2); color: #fbbf24; }
+.tag-site { background: rgba(34,197,94,0.2); color: #4ade80; }
+.footer { margin-top: 64px; font-size: 12px; color: #64748b; text-align: center; }
+</style>
 <script>
 var _hmt = _hmt || [];
 (function() {
@@ -20,364 +42,24 @@ var _hmt = _hmt || [];
 </script>
 </head>
 <body>
-<div id="app">
-  <div class="app-layout">
-    <aside class="sidebar">
-      <div class="sidebar-header">
-        <h1>中国早期铜器数据库</h1>
-        <p class="subtitle">Early Chinese Copper & Bronze Artifacts</p>
-        <div class="auth-status" v-if="!isLoggedIn">
-          <button class="btn btn-small btn-primary" @click="showLoginModal = true; refreshCaptcha()">登录</button>
-          <button class="btn btn-small btn-secondary" @click="showRegisterModal = true; authForm = {username:'',password:'',captcha_answer:null}; refreshCaptcha()">注册</button>
-        </div>
-        <div class="auth-status" v-else>
-          <span class="auth-user">{{ user.username }} <span v-if="isAdmin" class="admin-badge">管理员</span><span v-if="!isAdmin" class="points-badge">积分 {{ user.points || 0 }}</span></span>
-          <button class="btn btn-small btn-secondary" @click="doLogout">退出</button>
-        </div>
-      </div>
-
-      <div class="filter-section">
-        <div class="filter-row">
-          <input v-model="filters.search" type="text" placeholder="搜索名称、遗址、文化..." @input="onFilter" />
-        </div>
-        <div class="filter-row">
-          <label>区域</label>
-          <div class="checkbox-group">
-            <label v-for="r in regionOptions" :key="r">
-              <input type="checkbox" :value="r" v-model="filters.regions" @change="onFilter" /> {{ r }}
-            </label>
-          </div>
-        </div>
-        <div class="filter-row">
-          <label>时代</label>
-          <div class="range-inputs">
-            <input v-model.number="filters.period_start_min" type="number" placeholder="起始BC" @change="onFilter" />
-            <span>—</span>
-            <input v-model.number="filters.period_start_max" type="number" placeholder="终止BC" @change="onFilter" />
-          </div>
-        </div>
-        <div class="filter-row">
-          <label>材质</label>
-          <div class="checkbox-group">
-            <label v-for="m in materialOptions" :key="m">
-              <input type="checkbox" :value="m" v-model="filters.materials" @change="onFilter" /> {{ m }}
-            </label>
-          </div>
-        </div>
-        <button v-if="isLoggedIn" class="btn btn-primary" @click="showForm = true; editingId = null; resetForm()">+ 添加铜器</button>
-        <button v-if="isLoggedIn && !isAdmin" class="btn btn-secondary" @click="showMyEdits = true; fetchMyEdits()">我的提交</button>
-        <button v-if="isAdmin" class="btn btn-secondary" @click="showReviewPanel = true; fetchPendingEdits()">审核修改</button>
-      </div>
-
-      <div class="artifact-list">
-        <div class="list-header">
-          <span>共 {{ totalCount }} 件</span>
-        </div>
-        <div v-for="a in artifacts" :key="a.id" class="artifact-item"
-             :class="{ active: selectedId === a.id }"
-             @click="selectArtifact(a)">
-          <div class="item-name">{{ a.name }} <small v-if="a.catalog_number" style="color:#999">[{{ a.catalog_number }}]</small></div>
-          <div class="item-site">{{ a.region || '' }} {{ a.site_name || '' }}</div>
-          <div class="item-meta">
-            <span class="tag material-tag">{{ a.material || '材质未知' }}</span>
-            <span class="tag culture-tag" v-if="a.culture">{{ a.culture }}</span>
-            <span class="tag prod-tag" v-if="a.production_method">{{ a.production_method }}</span>
-            <span v-if="a.quantity && a.quantity !== '1'" style="font-size:11px;color:#888">x{{ a.quantity }}</span>
-          </div>
-        </div>
-        <div v-if="artifacts.length === 0" class="empty-list">暂无数据</div>
-      </div>
-    </aside>
-
-    <main class="map-container">
-      <div id="map"></div>
-      <div class="map-legend">
-        <div class="legend-title">材质图例</div>
-        <div v-for="item in legendItems" :key="item.label" class="legend-item">
-          <span class="legend-dot" :style="{ background: item.color }"></span>
-          {{ item.label }}
-        </div>
-      </div>
-    </main>
-  </div>
-
-  <!-- Detail Modal -->
-  <div v-if="selectedArtifact" class="modal-overlay" @click.self="selectedArtifact = null">
-    <div class="modal">
-      <button class="modal-close" @click="selectedArtifact = null">&times;</button>
-      <h2>{{ selectedArtifact.name }}</h2>
-      <table class="detail-table">
-        <tr v-if="selectedArtifact.catalog_number"><td>器物号</td><td>{{ selectedArtifact.catalog_number }}</td></tr>
-        <tr v-if="selectedArtifact.quantity"><td>数量</td><td>{{ selectedArtifact.quantity }}</td></tr>
-        <tr v-if="selectedArtifact.region"><td>区域</td><td>{{ selectedArtifact.region }}</td></tr>
-        <tr v-if="selectedArtifact.site_name"><td>遗址</td><td>{{ selectedArtifact.site_name }}</td></tr>
-        <tr v-if="selectedArtifact.culture"><td>考古学文化</td><td>{{ selectedArtifact.culture }}</td></tr>
-        <tr v-if="selectedArtifact.period_label"><td>时代</td><td>{{ selectedArtifact.period_label }}</td></tr>
-        <tr v-if="selectedArtifact.material"><td>材质</td><td>{{ selectedArtifact.material }}</td></tr>
-        <tr v-if="selectedArtifact.production_method"><td>制作方式</td><td>{{ selectedArtifact.production_method }}</td></tr>
-        <tr v-if="selectedArtifact.artifact_type"><td>器型</td><td>{{ selectedArtifact.artifact_type }}</td></tr>
-        <tr v-if="selectedArtifact.location_desc"><td>出土地点</td><td>{{ selectedArtifact.location_desc }}</td></tr>
-        <tr v-if="selectedArtifact.context_desc"><td>出土情境</td><td>{{ selectedArtifact.context_desc }}</td></tr>
-        <tr v-if="selectedArtifact.source_reference"><td>资料出处</td><td style="font-size:12px">{{ selectedArtifact.source_reference }}</td></tr>
-        <tr v-if="selectedArtifact.source_pdf"><td>PDF文档</td><td><a :href="pdfUrl(selectedArtifact.source_pdf)" target="_blank">查看PDF</a></td></tr>
-        <tr v-if="selectedArtifact.notes"><td>备注</td><td>{{ selectedArtifact.notes }}</td></tr>
-        <tr v-if="selectedArtifact.longitude != null"><td>坐标</td><td>{{ selectedArtifact.longitude.toFixed(4) }}, {{ selectedArtifact.latitude.toFixed(4) }}</td></tr>
-      </table>
-      <div class="image-gallery" v-if="selectedArtifact.image_url || (selectedArtifact.images && selectedArtifact.images.length)">
-        <div class="gallery-title">图片 ({{ (selectedArtifact.images || []).length }})</div>
-        <div class="gallery-grid">
-          <div v-for="img in selectedArtifact.images" :key="img.id" class="gallery-item" @click="viewImage(img)">
-            <img :src="imageUrl(img.filename)" :alt="img.caption || ''" />
-            <div class="gallery-caption" v-if="img.caption">{{ img.caption }}</div>
-            <div class="gallery-caption" v-else style="color:#999">{{ img.filename }}</div>
-          </div>
-        </div>
-        <div v-if="!selectedArtifact.images || !selectedArtifact.images.length" class="gallery-empty">暂无图片</div>
-      </div>
-      <div v-if="isLoggedIn" class="modal-actions">
-        <button v-if="isLoggedIn" class="btn btn-secondary" @click="editArtifact(selectedArtifact)">编辑</button>
-        <button v-if="isAdmin" class="btn btn-danger" @click="deleteArtifact(selectedArtifact)">删除</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Image Lightbox -->
-  <div v-if="lightboxImg" class="lightbox-overlay" @click.self="lightboxImg = null">
-    <div class="lightbox-content">
-      <button class="lightbox-close" @click="lightboxImg = null">&times;</button>
-      <img :src="imageUrl(lightboxImg.filename)" />
-      <div class="lightbox-caption" v-if="lightboxImg.caption">{{ lightboxImg.caption }}</div>
-    </div>
-  </div>
-
-  <!-- Form Modal -->
-  <div v-if="showForm" class="modal-overlay" @click.self="showForm = false">
-    <div class="modal modal-form">
-      <button class="modal-close" @click="showForm = false">&times;</button>
-      <h2>{{ editingId ? '编辑铜器' : '添加铜器' }}</h2>
-      <div class="form-grid">
-        <div class="form-group"><label>器物名称 *</label><input v-model="form.name" required /></div>
-        <div class="form-group"><label>器物号</label><input v-model="form.catalog_number" /></div>
-        <div class="form-group"><label>数量</label><input v-model="form.quantity" /></div>
-        <div class="form-group"><label>区域</label><select v-model="form.region">
-          <option value="">-- 选择 --</option>
-          <option v-for="r in regionOptions" :value="r">{{ r }}</option>
-        </select></div>
-        <div class="form-group"><label>遗址名称</label><input v-model="form.site_name" /></div>
-        <div class="form-group"><label>考古学文化</label><input v-model="form.culture" /></div>
-        <div class="form-group"><label>经度 WGS84</label><input v-model.number="form.longitude" type="number" step="0.0001" /></div>
-        <div class="form-group"><label>纬度 WGS84</label><input v-model.number="form.latitude" type="number" step="0.0001" /></div>
-        <div class="form-group"><label>时代标签</label><input v-model="form.period_label" placeholder="如: 二里头文化三期" /></div>
-        <div class="form-group"><label>起始年代(BC)</label><input v-model.number="form.period_start" type="number" /></div>
-        <div class="form-group"><label>结束年代(BC)</label><input v-model.number="form.period_end" type="number" /></div>
-        <div class="form-group"><label>材质</label><select v-model="form.material">
-          <option value="">-- 选择 --</option>
-          <option v-for="m in materialOptions" :value="m">{{ m }}</option>
-        </select></div>
-        <div class="form-group"><label>制作方式</label><select v-model="form.production_method">
-          <option value="">-- 选择 --</option>
-          <option>铸造</option><option>热锻</option><option>冷锻</option><option>锻造</option>
-          <option>铸造+热锻</option><option>铸造+冷锻</option><option>热锻+冷锻</option>
-          <option>铸造+热锻+冷加工</option><option>锤击</option><option>退火</option>
-        </select></div>
-        <div class="form-group"><label>器型</label><select v-model="form.artifact_type">
-          <option value="">-- 选择 --</option>
-          <option v-for="t in typeOptions" :value="t">{{ t }}</option>
-        </select></div>
-        <div class="form-group full-width"><label>资料出处</label><textarea v-model="form.source_reference" rows="2"></textarea></div>
-        <div class="form-group full-width" v-if="editingId">
-          <label>资料PDF <span class="form-hint">（仅 PDF 格式）</span></label>
-          <div v-if="form.source_pdf" class="pdf-current">
-            <a :href="pdfUrl(form.source_pdf)" target="_blank">{{ form.source_pdf }}</a>
-            <button class="btn btn-danger btn-small" @click="deletePdf">删除PDF</button>
-          </div>
-          <div class="form-images-upload">
-            <input type="file" ref="pdfInput" accept=".pdf" @change="onPdfSelected" />
-            <button class="btn btn-primary btn-small" @click="uploadPdf" :disabled="!pdfFile">上传PDF</button>
-          </div>
-        </div>
-        <div class="form-group full-width"><label>出土地点描述</label><textarea v-model="form.location_desc" rows="2"></textarea></div>
-        <div class="form-group full-width"><label>出土情境描述</label><textarea v-model="form.context_desc" rows="3"></textarea></div>
-        <div class="form-group full-width"><label>备注</label><textarea v-model="form.notes" rows="3"></textarea></div>
-      </div>
-      <p class="form-hint">提示：在地图上点击可选择坐标</p>
-      <!-- Image management (edit mode only) -->
-      <div v-if="editingId" class="form-images">
-        <div class="form-images-title">图片管理</div>
-        <div v-if="editImages.length" class="form-images-list">
-          <div v-for="img in editImages" :key="img.id" class="form-images-item">
-            <img :src="imageUrl(img.filename)" class="form-images-thumb" />
-            <span class="form-images-name">{{ img.filename }}</span>
-            <span class="form-images-caption">{{ img.caption || '' }}</span>
-            <button class="btn btn-danger btn-small" @click="removeImage(img.id)">删除</button>
-          </div>
-        </div>
-        <div v-else class="gallery-empty">暂无图片</div>
-        <div class="form-images-upload">
-          <input type="file" ref="fileInput" accept="image/*" @change="onFileSelected" />
-          <input v-model="newImageCaption" placeholder="图注（可选）" class="caption-input" />
-          <button class="btn btn-primary btn-small" @click="uploadSelectedFile" :disabled="!uploadFile">上传</button>
-        </div>
-      </div>
-      <div class="modal-actions">
-        <button class="btn btn-secondary" @click="showForm = false">取消</button>
-        <button class="btn btn-primary" @click="saveArtifact">保存</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Login Modal -->
-  <div v-if="showLoginModal" class="modal-overlay" @click.self="showLoginModal = false">
-    <div class="modal auth-modal">
-      <button class="modal-close" @click="showLoginModal = false">&times;</button>
-      <h2>登录</h2>
-      <div class="form-group">
-        <label>用户名</label>
-        <input v-model="authForm.username" @keyup.enter="doLogin" placeholder="输入用户名" />
-      </div>
-      <div class="form-group">
-        <label>密码</label>
-        <input v-model="authForm.password" type="password" @keyup.enter="doLogin" placeholder="输入密码" />
-      </div>
-      <div class="form-group">
-        <label>验证码</label>
-        <div class="captcha-row">
-          <span class="captcha-question">{{ captchaQuestion }}</span>
-          <a href="#" @click.prevent="refreshCaptcha" class="captcha-refresh">换一题</a>
-        </div>
-        <input v-model.number="authForm.captcha_answer" type="number" placeholder="输入计算结果" @keyup.enter="doLogin" />
-      </div>
-      <div class="modal-actions">
-        <button class="btn btn-secondary" @click="showLoginModal = false">取消</button>
-        <button class="btn btn-primary" @click="doLogin">登录</button>
-      </div>
-      <p class="auth-switch">没有账号？<a href="#" @click.prevent="showLoginModal = false; showRegisterModal = true; authForm = {username:'',password:'',captcha_answer:null}; refreshCaptcha()">注册</a></p>
-    </div>
-  </div>
-
-  <!-- Register Modal -->
-  <div v-if="showRegisterModal" class="modal-overlay" @click.self="showRegisterModal = false">
-    <div class="modal auth-modal">
-      <button class="modal-close" @click="showRegisterModal = false">&times;</button>
-      <h2>注册</h2>
-      <div class="form-group">
-        <label>用户名</label>
-        <input v-model="authForm.username" placeholder="至少3个字符" />
-      </div>
-      <div class="form-group">
-        <label>密码</label>
-        <input v-model="authForm.password" type="password" placeholder="至少6个字符" />
-      </div>
-      <div class="form-group">
-        <label>验证码</label>
-        <div class="captcha-row">
-          <span class="captcha-question">{{ captchaQuestion }}</span>
-          <a href="#" @click.prevent="refreshCaptcha" class="captcha-refresh">换一题</a>
-        </div>
-        <input v-model.number="authForm.captcha_answer" type="number" placeholder="输入计算结果" />
-      </div>
-      <div class="modal-actions">
-        <button class="btn btn-secondary" @click="showRegisterModal = false">取消</button>
-        <button class="btn btn-primary" @click="doRegister">注册</button>
-      </div>
-      <p class="auth-switch">已有账号？<a href="#" @click.prevent="showRegisterModal = false; showLoginModal = true; refreshCaptcha()">登录</a></p>
-    </div>
-  </div>
-
-  <!-- Review Panel Modal (admin) -->
-  <div v-if="showReviewPanel" class="modal-overlay" @click.self="showReviewPanel = false">
-    <div class="modal modal-review">
-      <button class="modal-close" @click="showReviewPanel = false">&times;</button>
-      <h2>修改审核</h2>
-      <div class="review-filters">
-        <button class="btn btn-small" :class="{ 'btn-primary': reviewFilter === 'pending', 'btn-secondary': reviewFilter !== 'pending' }" @click="reviewFilter = 'pending'; fetchPendingEdits()">待审核</button>
-        <button class="btn btn-small" :class="{ 'btn-primary': reviewFilter === 'approved', 'btn-secondary': reviewFilter !== 'approved' }" @click="reviewFilter = 'approved'; fetchPendingEdits()">已通过</button>
-        <button class="btn btn-small" :class="{ 'btn-primary': reviewFilter === 'rejected', 'btn-secondary': reviewFilter !== 'rejected' }" @click="reviewFilter = 'rejected'; fetchPendingEdits()">已驳回</button>
-      </div>
-      <div v-if="pendingEdits.length === 0" class="empty-list">暂无数据</div>
-      <div v-for="pe in pendingEdits" :key="pe.id" class="review-item">
-        <div class="review-item-header">
-          <span class="review-action" :class="'action-' + pe.action_type">{{ pe.action_type === 'create' ? '新增' : '修改' }}</span>
-          <span class="review-artifact-name">{{ pe.artifact_name || pe.payload?.name || '-' }}</span>
-          <span class="review-status" :class="'status-' + pe.status">{{ statusLabel(pe.status) }}</span>
-        </div>
-        <div class="review-item-meta">
-          提交者: {{ pe.submitter_name || '-' }} | {{ formatTime(pe.created_at) }}
-        </div>
-        <div class="review-payload" v-if="pe.action_type === 'update' && pe.artifact_data">
-          <details open>
-            <summary>修改对比（共 {{ getDiffFields(pe).length }} 项变动）</summary>
-            <table class="diff-table">
-              <thead><tr><th>字段</th><th>原值</th><th>新值</th><th style="width:60px">操作</th></tr></thead>
-              <tbody>
-                <tr v-for="d in getDiffFields(pe)" :key="d.field"
-                    :class="{ 'diff-rejected': pe.status === 'pending' && !isFieldApproved(pe.id, d.field) }">
-                  <td class="diff-field">{{ d.label }}</td>
-                  <td class="diff-old">{{ d.old || '-' }}</td>
-                  <td class="diff-new">{{ d.new || '-' }}</td>
-                  <td class="diff-action" v-if="pe.status === 'pending'">
-                    <button class="btn-toggle"
-                            :class="{ accepted: isFieldApproved(pe.id, d.field) }"
-                            @click="toggleFieldApproval(pe.id, d.field)">
-                      {{ isFieldApproved(pe.id, d.field) ? '✓' : '✗' }}
-                    </button>
-                  </td>
-                  <td class="diff-action" v-else>{{ pe.approved_fields && pe.approved_fields.includes(d.field) ? '✓' : '✗' }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </details>
-        </div>
-        <div class="review-payload" v-else-if="pe.action_type === 'update'">
-          <details>
-            <summary>查看修改内容</summary>
-            <pre>{{ JSON.stringify(pe.payload, null, 2) }}</pre>
-          </details>
-        </div>
-        <div class="review-payload" v-else>
-          <details>
-            <summary>查看新增内容</summary>
-            <pre>{{ JSON.stringify(pe.payload, null, 2) }}</pre>
-          </details>
-        </div>
-        <div v-if="pe.review_notes" class="review-notes">审核意见: {{ pe.review_notes }}</div>
-        <div class="review-actions" v-if="pe.status === 'pending'">
-          <input v-model="reviewNotes[pe.id]" placeholder="驳回理由（可选）" class="review-notes-input" />
-          <button class="btn btn-primary btn-small" @click="approveEdit(pe.id)">通过</button>
-          <button class="btn btn-danger btn-small" @click="rejectEdit(pe.id)">驳回</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- My Submissions Modal (registered user) -->
-  <div v-if="showMyEdits" class="modal-overlay" @click.self="showMyEdits = false">
-    <div class="modal modal-review">
-      <button class="modal-close" @click="showMyEdits = false">&times;</button>
-      <h2>我的提交</h2>
-      <div class="review-filters">
-        <button class="btn btn-small" :class="{ 'btn-primary': myFilter === '', 'btn-secondary': myFilter !== '' }" @click="myFilter = ''; fetchMyEdits()">全部</button>
-        <button class="btn btn-small" :class="{ 'btn-primary': myFilter === 'pending', 'btn-secondary': myFilter !== 'pending' }" @click="myFilter = 'pending'; fetchMyEdits()">待审核</button>
-        <button class="btn btn-small" :class="{ 'btn-primary': myFilter === 'approved', 'btn-secondary': myFilter !== 'approved' }" @click="myFilter = 'approved'; fetchMyEdits()">已通过</button>
-        <button class="btn btn-small" :class="{ 'btn-primary': myFilter === 'rejected', 'btn-secondary': myFilter !== 'rejected' }" @click="myFilter = 'rejected'; fetchMyEdits()">已驳回</button>
-      </div>
-      <div v-if="myEdits.length === 0" class="empty-list">暂无记录</div>
-      <div v-for="pe in myEdits" :key="pe.id" class="review-item">
-        <div class="review-item-header">
-          <span class="review-action" :class="'action-' + pe.action_type">{{ pe.action_type === 'create' ? '新增' : '修改' }}</span>
-          <span class="review-artifact-name">{{ pe.artifact_name || pe.payload?.name || '-' }}</span>
-          <span class="review-status" :class="'status-' + pe.status">{{ statusLabel(pe.status) }}</span>
-        </div>
-        <div class="review-item-meta">{{ formatTime(pe.created_at) }}</div>
-        <div v-if="pe.review_notes" class="review-notes">审核意见: {{ pe.review_notes }}</div>
-        <div v-if="pe.approved_fields && pe.approved_fields.length" class="review-notes" style="color:#065f46">
-          已接受字段: {{ pe.approved_fields.join(', ') }}
-        </div>
-      </div>
-    </div>
-  </div>
+<div class="hero">
+  <h1>中国考古地理信息系统</h1>
+  <p>Archaeological Geographic Information System of China</p>
 </div>
-
-<script src="/src/main.js"></script>
+<div class="cards">
+  <a href="/bronze/" class="card">
+    <div class="card-icon">&#129684;</div>
+    <h2>中国早期铜器数据库</h2>
+    <p>收录中国境内早期铜器（青铜时代及以前）的空间分布、文化属性、形制特征等数据，支持按区域、时代、材质、器型等多维度检索与地图浏览。</p>
+    <span class="card-tag tag-bronze">铜器 · 青铜时代</span>
+  </a>
+  <a href="/prehistoric/" class="card">
+    <div class="card-icon">&#127963;</div>
+    <h2>中国史前遗址地理信息系统</h2>
+    <p>汇集中国各地区史前考古遗址的空间分布、文化分期、发掘历史等信息，通过时空筛选功能探索遗址的地理格局与演变。</p>
+    <span class="card-tag tag-site">遗址 · 史前考古</span>
+  </a>
+</div>
+<div class="footer">&#169; 2026 中国考古地理信息系统 · ArchaeoGIS</div>
 </body>
 </html>

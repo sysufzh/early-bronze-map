@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="referrer" content="no-referrer" />
+<title>中国史前遗址地理信息系统</title>
+<link rel="stylesheet" href="/leaflet.css" />
+<script src="/leaflet.js"></script>
+<script src="https://unpkg.com/vue@3.4.21/dist/vue.global.prod.js"></script>
+<link rel="stylesheet" href="src/style.css" />
+</head>
+<body>
+<div id="app">
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <h1>中国史前遗址地理信息系统</h1>
+        <div class="subtitle">Prehistoric Sites GIS of China</div>
+        <div class="auth-status" v-if="isLoggedIn">
+          <span class="auth-user">{{ user.username }}</span>
+          <span v-if="isAdmin" class="admin-badge">管理员</span>
+          <span v-else class="points-badge">积分 {{ user.points || 0 }}</span>
+          <button @click="logout" class="btn btn-secondary btn-small">退出</button>
+        </div>
+        <div class="auth-status" v-else>
+          <button @click="showLoginModal = true; refreshCaptcha()" class="btn btn-primary btn-small">登录</button>
+          <button @click="showRegisterModal = true; refreshCaptcha()" class="btn btn-secondary btn-small">注册</button>
+        </div>
+        <div style="margin-top:8px;">
+          <a href="/" style="font-size:12px;color:#888;text-decoration:none;">← 返回主页</a>
+        </div>
+      </div>
+
+      <div class="filter-section">
+        <div class="filter-row">
+          <label>搜索遗址名称</label>
+          <input type="text" v-model="filterSearch" @input="debouncedFetch" placeholder="输入关键词搜索..." />
+        </div>
+        <div class="filter-row">
+          <label>区域</label>
+          <select v-model="filterRegion" @change="fetchSites">
+            <option value="">全部区域</option>
+            <option v-for="r in filterOptions.regions" :value="r" :key="r">{{ r }}</option>
+          </select>
+        </div>
+        <div class="filter-row">
+          <label>时代</label>
+          <select v-model="filterPeriod" @change="fetchSites">
+            <option value="">全部时代</option>
+            <option v-for="p in filterOptions.period_labels" :value="p" :key="p">{{ p }}</option>
+          </select>
+        </div>
+        <div class="filter-row">
+          <label>遗址类型</label>
+          <select v-model="filterSiteType" @change="fetchSites">
+            <option value="">全部类型</option>
+            <option v-for="t in filterOptions.site_types" :value="t" :key="t">{{ t }}</option>
+          </select>
+        </div>
+        <div class="filter-row">
+          <label>起始年代范围</label>
+          <div class="range-inputs">
+            <input type="number" v-model.number="filterPeriodStartMin" placeholder="最早" @change="fetchSites" />
+            <span>—</span>
+            <input type="number" v-model.number="filterPeriodStartMax" placeholder="最晚" @change="fetchSites" />
+          </div>
+        </div>
+        <div v-if="isAdmin" style="margin-top: 10px;">
+          <button @click="openNewSiteForm" class="btn btn-primary">+ 添加遗址</button>
+        </div>
+      </div>
+
+      <div class="list-header">共 {{ totalCount }} 处遗址</div>
+
+      <div class="artifact-list">
+        <div v-if="sites.length === 0" class="empty-list">暂无数据</div>
+        <div v-for="s in sites" :key="s.id" class="artifact-item" :class="{ active: selectedId === s.id }" @click="selectSite(s)">
+          <div class="item-name">{{ s.name }}</div>
+          <div class="item-site">{{ s.region || '-' }} · {{ s.site_name || '-' }}</div>
+          <div class="item-meta">
+            <span v-if="s.period_label" class="tag period-tag">{{ s.period_label }}</span>
+            <span v-if="s.site_type" class="tag material-tag">{{ s.site_type }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Map -->
+    <div class="map-container">
+      <div id="map"></div>
+      <div class="map-legend">
+        <div class="legend-title">时代图例</div>
+        <div v-for="p in legendPeriods" :key="p.label" class="legend-item">
+          <span class="legend-dot" :style="{ background: p.color }"></span>
+          {{ p.label }}
+        </div>
+        <div v-if="legendPeriods.length === 0" style="font-size:11px;color:#999;">暂无数据</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detail Modal -->
+  <div class="modal-overlay" v-if="selectedSite" @click.self="selectedSite = null">
+    <div class="modal">
+      <button class="modal-close" @click="selectedSite = null">&times;</button>
+      <h2>{{ selectedSite.name }}</h2>
+      <table class="detail-table">
+        <tr v-if="selectedSite.catalog_number"><td>遗址编号</td><td>{{ selectedSite.catalog_number }}</td></tr>
+        <tr v-if="selectedSite.region"><td>区域</td><td>{{ selectedSite.region }}</td></tr>
+        <tr v-if="selectedSite.site_name"><td>遗址地点</td><td>{{ selectedSite.site_name }}</td></tr>
+        <tr v-if="selectedSite.longitude != null"><td>经度</td><td>{{ selectedSite.longitude }}</td></tr>
+        <tr v-if="selectedSite.latitude != null"><td>纬度</td><td>{{ selectedSite.latitude }}</td></tr>
+        <tr v-if="selectedSite.period_label"><td>时代</td><td>{{ selectedSite.period_label }}</td></tr>
+        <tr v-if="selectedSite.period_start != null || selectedSite.period_end != null">
+          <td>年代范围</td>
+          <td>{{ selectedSite.period_start || '?' }} — {{ selectedSite.period_end || '?' }} BC</td>
+        </tr>
+        <tr v-if="selectedSite.culture"><td>考古学文化</td><td>{{ selectedSite.culture }}</td></tr>
+        <tr v-if="selectedSite.site_type"><td>遗址类型</td><td>{{ selectedSite.site_type }}</td></tr>
+        <tr v-if="selectedSite.area_desc"><td>面积</td><td>{{ selectedSite.area_desc }}</td></tr>
+        <tr v-if="selectedSite.preservation_status"><td>保护状况</td><td>{{ selectedSite.preservation_status }}</td></tr>
+        <tr v-if="selectedSite.description"><td>遗址描述</td><td>{{ selectedSite.description }}</td></tr>
+        <tr v-if="selectedSite.excavation_history"><td>发掘历史</td><td>{{ selectedSite.excavation_history }}</td></tr>
+        <tr v-if="selectedSite.key_findings"><td>主要发现</td><td>{{ selectedSite.key_findings }}</td></tr>
+        <tr v-if="selectedSite.source_reference"><td>资料出处</td><td>{{ selectedSite.source_reference }}</td></tr>
+        <tr v-if="selectedSite.notes"><td>备注</td><td>{{ selectedSite.notes }}</td></tr>
+      </table>
+      <div class="modal-actions" v-if="isAdmin">
+        <button class="btn btn-primary" @click="editSite(selectedSite)">编辑</button>
+        <button class="btn btn-danger" @click="deleteSite(selectedSite.id)">删除</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Site Form Modal -->
+  <div class="modal-overlay" v-if="showForm" @click.self="showForm = false">
+    <div class="modal modal-form">
+      <button class="modal-close" @click="showForm = false">&times;</button>
+      <h2>{{ editingId ? '编辑遗址' : '添加遗址' }}</h2>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>遗址名称 *</label>
+          <input type="text" v-model="form.name" />
+        </div>
+        <div class="form-group">
+          <label>遗址编号</label>
+          <input type="text" v-model="form.catalog_number" />
+        </div>
+        <div class="form-group">
+          <label>区域</label>
+          <input type="text" v-model="form.region" />
+        </div>
+        <div class="form-group">
+          <label>遗址地点</label>
+          <input type="text" v-model="form.site_name" />
+        </div>
+        <div class="form-group">
+          <label>经度</label>
+          <input type="number" step="any" v-model="form.longitude" />
+        </div>
+        <div class="form-group">
+          <label>纬度</label>
+          <input type="number" step="any" v-model="form.latitude" />
+        </div>
+        <div class="form-group">
+          <label>时代标签</label>
+          <input type="text" v-model="form.period_label" />
+        </div>
+        <div class="form-group">
+          <label>考古学文化</label>
+          <input type="text" v-model="form.culture" />
+        </div>
+        <div class="form-group">
+          <label>起始年代 (BC)</label>
+          <input type="number" v-model="form.period_start" />
+        </div>
+        <div class="form-group">
+          <label>结束年代 (BC)</label>
+          <input type="number" v-model="form.period_end" />
+        </div>
+        <div class="form-group">
+          <label>遗址类型</label>
+          <input type="text" v-model="form.site_type" placeholder="如洞穴、台地、沙丘、贝丘等" />
+        </div>
+        <div class="form-group">
+          <label>面积</label>
+          <input type="text" v-model="form.area_desc" placeholder="如 5万平方米" />
+        </div>
+        <div class="form-group">
+          <label>保护状况</label>
+          <input type="text" v-model="form.preservation_status" placeholder="如 全国重点文保单位" />
+        </div>
+        <div class="form-group full-width">
+          <label>遗址描述</label>
+          <textarea v-model="form.description" rows="3"></textarea>
+        </div>
+        <div class="form-group full-width">
+          <label>发掘历史</label>
+          <textarea v-model="form.excavation_history" rows="3"></textarea>
+        </div>
+        <div class="form-group full-width">
+          <label>主要发现</label>
+          <textarea v-model="form.key_findings" rows="3"></textarea>
+        </div>
+        <div class="form-group full-width">
+          <label>资料出处</label>
+          <textarea v-model="form.source_reference" rows="2"></textarea>
+        </div>
+        <div class="form-group full-width">
+          <label>备注</label>
+          <textarea v-model="form.notes" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" @click="showForm = false">取消</button>
+        <button class="btn btn-primary" @click="saveSite">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login Modal -->
+  <div class="modal-overlay" v-if="showLoginModal" @click.self="showLoginModal = false">
+    <div class="modal auth-modal">
+      <button class="modal-close" @click="showLoginModal = false">&times;</button>
+      <h2>登录</h2>
+      <div class="form-group">
+        <label>用户名</label>
+        <input type="text" v-model="authForm.username" />
+      </div>
+      <div class="form-group">
+        <label>密码</label>
+        <input type="password" v-model="authForm.password" @keyup.enter="doLogin" />
+      </div>
+      <div class="form-group">
+        <label>验证码</label>
+        <div class="captcha-row">
+          <span class="captcha-question">{{ captchaQuestion }}</span>
+          <a href="#" @click.prevent="refreshCaptcha" class="captcha-refresh">换一题</a>
+        </div>
+        <input v-model.number="authForm.captcha_answer" type="number" placeholder="请输入结果" @keyup.enter="doLogin" />
+      </div>
+      <button class="btn btn-primary" @click="doLogin" style="width:100%;margin-top:12px;">登录</button>
+      <div class="auth-switch">
+        <a href="#" @click.prevent="showLoginModal = false; showRegisterModal = true; refreshCaptcha()">没有账号？去注册</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Register Modal -->
+  <div class="modal-overlay" v-if="showRegisterModal" @click.self="showRegisterModal = false">
+    <div class="modal auth-modal">
+      <button class="modal-close" @click="showRegisterModal = false">&times;</button>
+      <h2>注册</h2>
+      <div class="form-group">
+        <label>用户名</label>
+        <input type="text" v-model="authForm.username" />
+      </div>
+      <div class="form-group">
+        <label>密码</label>
+        <input type="password" v-model="authForm.password" />
+      </div>
+      <div class="form-group">
+        <label>验证码</label>
+        <div class="captcha-row">
+          <span class="captcha-question">{{ captchaQuestion }}</span>
+          <a href="#" @click.prevent="refreshCaptcha" class="captcha-refresh">换一题</a>
+        </div>
+        <input v-model.number="authForm.captcha_answer" type="number" placeholder="请输入结果" />
+      </div>
+      <button class="btn btn-primary" @click="doRegister" style="width:100%;margin-top:12px;">注册</button>
+      <div class="auth-switch">
+        <a href="#" @click.prevent="showRegisterModal = false; showLoginModal = true; refreshCaptcha()">已有账号？去登录</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="src/main.js"></script>
+</body>
+</html>

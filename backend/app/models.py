@@ -88,3 +88,28 @@ class PendingEdit(Base):
 
     submitter = relationship("User", foreign_keys=[user_id], backref="pending_edits")
     reviewer = relationship("User", foreign_keys=[reviewer_id])
+
+
+class PrehistoricSite(Base):
+    __tablename__ = "prehistoric_sites"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(300), nullable=False, comment="遗址名称")
+    catalog_number = Column(String(200), comment="遗址编号")
+    region = Column(String(100), comment="区域")
+    site_name = Column(String(300), comment="遗址地点")
+    geom = Column(Geometry("POINT", srid=4326), nullable=True, comment="空间坐标(WGS84)")
+    period_label = Column(String(100), comment="时代标签")
+    period_start = Column(Integer, comment="起始年代BC")
+    period_end = Column(Integer, comment="结束年代BC")
+    culture = Column(String(200), comment="考古学文化")
+    site_type = Column(String(100), comment="遗址类型")
+    area_desc = Column(Text, comment="面积描述")
+    description = Column(Text, comment="遗址描述")
+    excavation_history = Column(Text, comment="发掘历史")
+    key_findings = Column(Text, comment="主要发现")
+    preservation_status = Column(String(100), comment="保护状况")
+    source_reference = Column(Text, comment="资料出处")
+    notes = Column(Text, comment="备注")
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
